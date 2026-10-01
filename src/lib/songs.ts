@@ -243,3 +243,53 @@ export async function addSongToQueue(
   }
   return data as any;
 }
+
+/**
+ * Remove an item from the queue
+ */
+export async function removeSongFromQueue(queueId: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    return true;
+  }
+
+  const { error } = await supabase.from('queue_items').delete().eq('id', queueId);
+  if (error) {
+    console.error('Error removing song from queue:', error);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Move a queued song to the top of the upcoming playlist
+ */
+export async function moveSongToTop(roomCode: string, queueId: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    return true;
+  }
+
+  // Get currently playing/queued items
+  const { data: items } = await (supabase
+    .from('queue_items')
+    .select('id, position, status')
+    .eq('room_code', roomCode)
+    .in('status', ['queued', 'playing'])
+    .order('position', { ascending: true }) as any);
+
+  if (!items || items.length === 0) return false;
+
+  // If item 0 is playing, the top queued position is right after it
+  const isFirstPlaying = items[0]?.status === 'playing';
+  const targetPos =
+    isFirstPlaying && items[1] ? items[1].position - 1 : (items[0]?.position || 1) - 1;
+
+  const { error } = await (supabase.from('queue_items') as any)
+    .update({ position: targetPos })
+    .eq('id', queueId);
+
+  if (error) {
+    console.error('Error moving song to top:', error);
+    return false;
+  }
+  return true;
+}
