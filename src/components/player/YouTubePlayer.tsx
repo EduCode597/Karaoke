@@ -120,6 +120,7 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
           videoId,
           width: '100%',
           height: '100%',
+          host: 'https://www.youtube-nocookie.com',
           playerVars: {
             autoplay: 1,
             controls: 0,
@@ -128,7 +129,6 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
             disablekb: 1,
             playsinline: 1,
             enablejsapi: 1,
-            origin: window.location.origin,
           },
           events: {
             onReady: (event) => {

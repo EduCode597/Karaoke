@@ -10,6 +10,7 @@ declare global {
             videoId?: string;
             width?: string | number;
             height?: string | number;
+            host?: string;
             playerVars?: {
               autoplay?: 0 | 1;
               controls?: 0 | 1;

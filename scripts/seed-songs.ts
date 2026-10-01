@@ -18,7 +18,7 @@ const SEED_SONGS = [
     title: 'Anak',
     artist: 'Freddie Aguilar',
     language: 'Tagalog',
-    youtube_id: 'n4RjJKxrfSg',
+    youtube_id: 'zaYOvpl3Y1k',
     duration: 235,
     key_offset: 0,
     lrc_content: `[00:14.25]Nang isilang ka sa mundong ito
@@ -33,7 +33,7 @@ const SEED_SONGS = [
     title: 'Ang Huling El Bimbo',
     artist: 'Eraserheads',
     language: 'Tagalog',
-    youtube_id: 'WjK3rL4-s_4',
+    youtube_id: 'ih_1qXYDXO4',
     duration: 320,
     key_offset: 0,
     lrc_content: `[00:15.50]Kamukha mo si Paraluman
@@ -48,7 +48,7 @@ const SEED_SONGS = [
     title: 'Tala',
     artist: 'Sarah Geronimo',
     language: 'Tagalog',
-    youtube_id: 'kF5A11eC4y0',
+    youtube_id: 't-R0whXGk-Y',
     duration: 250,
     key_offset: 0,
     lrc_content: `[00:18.20]Sa bawat pag-ikot ng ating mundo
@@ -59,10 +59,10 @@ const SEED_SONGS = [
   },
   {
     code: '01004',
-    title: 'Bakit Pa',
-    artist: 'Jessa Zaragoza',
+    title: 'Bakit Pa Ba',
+    artist: 'Sarah Geronimo',
     language: 'Tagalog',
-    youtube_id: '5_zPzE4nQwQ',
+    youtube_id: '1v-WI4sf7Is',
     duration: 275,
     key_offset: 0,
     lrc_content: `[00:16.10]Bakit pa kita nakilala?
@@ -81,14 +81,14 @@ const SEED_SONGS = [
     lrc_content: `[00:14.20]And now, the end is near
 [00:21.10]And so I face the final curtain
 [00:28.40]My friend, I'll say it clear
-[00:35.30]I'll state my case, of which I'm certain`,
+[00:35.30]Ill state my case, of which I'm certain`,
   },
   {
     code: '01006',
     title: 'Harana',
     artist: 'Parokya ni Edgar',
     language: 'Tagalog',
-    youtube_id: '5q-Xb3t54hI',
+    youtube_id: 'KwJaKOcI1c8',
     duration: 185,
     key_offset: 0,
     lrc_content: `[00:12.30]Uso pa ba ang harana?
@@ -101,7 +101,7 @@ const SEED_SONGS = [
     title: 'Narda',
     artist: 'Kamikazee',
     language: 'Tagalog',
-    youtube_id: 'xJ8M4ZlOQY4',
+    youtube_id: 'SyPPsDViSK4',
     duration: 280,
     key_offset: 0,
     lrc_content: `[00:18.50]Tila ibon kung lumipad
@@ -114,7 +114,7 @@ const SEED_SONGS = [
     title: 'Dancing Queen',
     artist: 'ABBA',
     language: 'English',
-    youtube_id: 'xFLx7NzPECA',
+    youtube_id: 'xFrGuyw1V8s',
     duration: 230,
     key_offset: 0,
     lrc_content: `[00:19.20]You can dance, you can jive
@@ -127,7 +127,7 @@ const SEED_SONGS = [
     title: 'Kahit Maputi Na Ang Buhok Ko',
     artist: 'Rey Valera',
     language: 'Tagalog',
-    youtube_id: '2H7cZ8V_uWc',
+    youtube_id: '5vkq4NLrNWo',
     duration: 210,
     key_offset: 0,
     lrc_content: `[00:15.10]Kung tayo ay matanda na
@@ -150,16 +150,24 @@ const SEED_SONGS = [
   },
   {
     code: '01011',
-    title: 'Pusong Bato',
-    artist: 'Jovit Baldivino',
+    title: 'Torete',
+    artist: 'Moira Dela Torre',
     language: 'Tagalog',
-    youtube_id: 'E_Q5G7g9z6I',
+    youtube_id: 'fPEWDeq3R_4',
     duration: 240,
     key_offset: 0,
-    lrc_content: `[00:18.10]Nang ika'y ibigin ko
-[00:22.40]Mundo ko'y biglang nagbago
-[00:27.50]Akala ko ika'y langit
-[00:31.20]Yun pala'y sakit sa puso`,
+    lrc_content: `[00:15.30]Sandali na lang
+[00:20.10]Maaari bang pagbigyan
+[00:25.40]Aalis na nga
+[00:29.80]Maaari bang hawakan
+[00:34.50]Ang iyong mga kamay
+[00:39.20]Sana ay maabot ng langit
+[00:44.50]Ang iyong mga ngiti
+[00:49.10]Sana ay masilayan
+[00:54.00]Huwag kang mag-alala
+[00:59.20]Di ko ipipilit sa 'yo
+[01:03.50]Kahit na lilipad ang isip ko sa 'yo
+[01:09.10]Torete, torete, torete ako`,
   },
   {
     code: '01012',
