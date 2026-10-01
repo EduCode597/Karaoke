@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -14,16 +14,23 @@ import {
   Volume2,
   Music,
   Radio,
+  ListMusic,
+  User,
+  Sparkles,
+  Mic2,
 } from 'lucide-react';
 import { generateRoomCode, getStoredRoomCode, setStoredRoomCode } from '../utils/room';
 import { useRoomChannel } from '../hooks/useRoomChannel';
-import { isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { getRoomQueue } from '../lib/songs';
+import type { QueueItem } from '../types/song';
 
 export default function HostView() {
   const [roomCode, setRoomCode] = useState<string>(() => {
     return getStoredRoomCode() || generateRoomCode();
   });
   const [copied, setCopied] = useState(false);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
 
   const { status, onlineCount, recentEvents } = useRoomChannel(roomCode, true);
 
@@ -44,6 +51,54 @@ export default function HostView() {
     const newCode = generateRoomCode();
     setRoomCode(newCode);
   };
+
+  // Sync Queue from Supabase
+  const fetchQueue = useCallback(async () => {
+    if (!roomCode) return;
+    try {
+      const items = await getRoomQueue(roomCode);
+      setQueue(items);
+    } catch (err) {
+      console.error('Failed to fetch queue in HostView:', err);
+    }
+  }, [roomCode]);
+
+  useEffect(() => {
+    fetchQueue();
+
+    if (!isSupabaseConfigured || !roomCode) return;
+
+    // Realtime Postgres Changes Subscription for TV Queue
+    const channel = supabase
+      .channel(`host-queue:${roomCode}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'queue_items',
+          filter: `room_code=eq.${roomCode}`,
+        },
+        () => {
+          fetchQueue();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomCode, fetchQueue]);
+
+  // Also refresh queue when broadcast queue:updated event arrives
+  useEffect(() => {
+    if (recentEvents.length > 0 && recentEvents[0].event === 'queue:updated') {
+      fetchQueue();
+    }
+  }, [recentEvents, fetchQueue]);
+
+  const currentTrack = queue[0] || null;
+  const upcomingQueue = queue.slice(1);
 
   return (
     <div className="min-h-screen bg-videoke-bg text-slate-100 flex flex-col justify-between relative overflow-hidden crt-overlay">
@@ -132,34 +187,68 @@ export default function HostView() {
 
       {/* Main TV Layout */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start z-10">
-        {/* Left 2 Cols: Main Player & Lyrics Stage */}
+        {/* Left 2 Cols: Main Player & Stage Display */}
         <div className="lg:col-span-2 flex flex-col gap-4">
-          {/* Simulated Video Player Screen (Day 4 embeds YouTube IFrame) */}
+          {/* Simulated Video Player Screen */}
           <div className="aspect-video w-full rounded-2xl bg-black border border-slate-800 relative overflow-hidden flex flex-col items-center justify-center p-8 text-center shadow-2xl">
-            {/* Top Stage Lights */}
+            {/* Top Stage Accent Glow */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent" />
 
-            {/* Empty State / Stage Placeholder */}
-            <div className="flex flex-col items-center gap-4 max-w-md">
-              <div className="w-16 h-16 rounded-full bg-slate-900/80 border border-slate-800 flex items-center justify-center shadow-neon-cyan">
-                <Music className="w-8 h-8 text-cyan-400 animate-pulse" />
-              </div>
-              <h2 className="text-2xl font-black tracking-wide text-white text-glow-cyan">
-                READY FOR SINGER
-              </h2>
-              <p className="text-sm text-slate-400 font-mono">
-                Scan the QR code on the right with your phone to choose a song and join the queue!
-              </p>
-            </div>
+            {/* When a track is in the queue vs when empty */}
+            {currentTrack ? (
+              <div className="flex flex-col items-center gap-4 max-w-lg z-10 animate-fade-in">
+                <div className="px-4 py-1.5 rounded-full bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 font-mono text-xs font-bold uppercase tracking-widest flex items-center gap-2 shadow-neon-cyan">
+                  <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                  <span>Up Next on Stage</span>
+                </div>
 
-            {/* Bottom Retro Lyrics Banner Preview */}
-            <div className="absolute bottom-4 left-4 right-4 py-3 px-6 rounded-xl bg-black/75 border border-slate-800/80 backdrop-blur-md flex items-center justify-between">
+                <div className="flex flex-col items-center gap-1">
+                  <span className="font-digital text-3xl font-black text-amber-400 text-glow-amber tracking-wider">
+                    {currentTrack.song?.code || '-----'}
+                  </span>
+                  <h2 className="text-3xl md:text-4xl font-black tracking-wide text-white text-glow-cyan">
+                    {currentTrack.song?.title || 'Unknown Title'}
+                  </h2>
+                  <p className="text-base text-slate-300 font-medium">
+                    {currentTrack.song?.artist || 'Unknown Artist'}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 text-slate-200">
+                  <Mic2 className="w-5 h-5 text-fuchsia-400" />
+                  <span className="text-sm font-mono">
+                    Singer:{' '}
+                    <strong className="text-fuchsia-300 text-base">
+                      {currentTrack.singer_name || 'Guest'}
+                    </strong>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4 max-w-md">
+                <div className="w-16 h-16 rounded-full bg-slate-900/80 border border-slate-800 flex items-center justify-center shadow-neon-cyan">
+                  <Music className="w-8 h-8 text-cyan-400 animate-pulse" />
+                </div>
+                <h2 className="text-2xl font-black tracking-wide text-white text-glow-cyan">
+                  READY FOR SINGER
+                </h2>
+                <p className="text-sm text-slate-400 font-mono">
+                  Scan the QR code on the right with your phone to pick a song and step up to the
+                  mic!
+                </p>
+              </div>
+            )}
+
+            {/* Bottom Retro Banner */}
+            <div className="absolute bottom-4 left-4 right-4 py-3 px-6 rounded-xl bg-black/80 border border-slate-800/80 backdrop-blur-md flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Volume2 className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-mono text-slate-400">Microphone: Standby</span>
+                <span className="text-xs font-mono text-slate-400">
+                  {queue.length > 0 ? `${queue.length} Songs Queued` : 'Microphone: Standby'}
+                </span>
               </div>
               <span className="text-xs font-digital text-amber-400 tracking-wider">
-                PINOYVIDEOKE AUDIO ENGINE • STANDBY
+                PINOYVIDEOKE ENGINE • READY
               </span>
             </div>
           </div>
@@ -174,74 +263,128 @@ export default function HostView() {
               <p className="animate-marquee whitespace-nowrap text-xs font-mono text-slate-400">
                 ★ PAIR YOUR PHONE VIA QR CODE ★ ROOM CODE:{' '}
                 <span className="text-amber-400 font-bold">{roomCode}</span> ★ CONNECTED REMOTES:{' '}
-                <span className="text-cyan-400 font-bold">{onlineCount}</span> ★ SEARCH OVER 30+
-                CLASSIC OPM AND POP HITS ★
+                <span className="text-cyan-400 font-bold">{onlineCount}</span> ★{' '}
+                {currentTrack
+                  ? `NEXT SINGER: ${currentTrack.singer_name} (${currentTrack.song?.title}) ★ `
+                  : 'READY FOR SINGERS ★ '}
+                SEARCH OVER 30+ CLASSIC OPM AND POP HITS ★
               </p>
             </div>
           </div>
         </div>
 
-        {/* Right 1 Col: Prominent QR Code & Realtime Event Stream */}
-        <div className="flex flex-col gap-6">
-          {/* Prominent QR Code Pairing Card */}
-          <div className="p-6 rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-xl flex flex-col items-center text-center gap-4">
-            <div className="flex items-center gap-2 text-cyan-400">
-              <Smartphone className="w-5 h-5" />
-              <h3 className="font-bold text-sm tracking-wider uppercase">Scan to Control</h3>
+        {/* Right 1 Col: QR Code & Live Party Queue */}
+        <div className="flex flex-col gap-5">
+          {/* Compact Prominent QR Code Card */}
+          <div className="p-5 rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-xl flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-1 max-w-[160px]">
+              <div className="flex items-center gap-1.5 text-cyan-400">
+                <Smartphone className="w-4 h-4" />
+                <h3 className="font-bold text-xs tracking-wider uppercase">Scan to Control</h3>
+              </div>
+              <p className="text-[11px] text-slate-400 font-mono leading-tight">
+                Scan with your phone camera to open the 5-digit keypad
+              </p>
+              <span className="text-[10px] text-amber-400 font-digital font-bold mt-1">
+                CODE: {roomCode}
+              </span>
             </div>
 
-            {/* QR Code Container with Neon Cyan Border */}
-            <div className="p-4 rounded-2xl bg-slate-950 border-2 border-cyan-500/60 shadow-neon-cyan">
+            {/* QR Code Container */}
+            <div className="p-2.5 rounded-xl bg-slate-950 border border-cyan-500/50 shadow-neon-cyan shrink-0">
               <QRCodeSVG
                 value={remoteJoinUrl}
-                size={180}
+                size={110}
                 bgColor="#030712"
                 fgColor="#06b6d4"
                 level="M"
                 includeMargin={false}
               />
             </div>
+          </div>
 
-            <div className="flex flex-col gap-1">
-              <p className="text-xs text-slate-300 font-mono">
-                Scan with your phone camera to open the 5-digit keypad
-              </p>
-              <p className="text-[11px] text-slate-500 font-mono">No app download required</p>
+          {/* Live Party Queue Display */}
+          <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ListMusic className="w-4 h-4 text-fuchsia-400" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                  Party Playlist
+                </h4>
+              </div>
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
+                {queue.length} in queue
+              </span>
+            </div>
+
+            {/* Playlist Items */}
+            <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
+              {queue.length === 0 ? (
+                <div className="py-6 text-center text-slate-600 font-mono text-xs">
+                  The party queue is empty!
+                  <br />
+                  <span className="text-[10px] text-slate-700">
+                    Use your phone remote to reserve a song.
+                  </span>
+                </div>
+              ) : (
+                upcomingQueue.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80 flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <span className="w-5 h-5 rounded-lg bg-slate-800 text-slate-400 font-mono font-bold flex items-center justify-center text-[10px] shrink-0">
+                        {idx + 2}
+                      </span>
+                      <div className="overflow-hidden">
+                        <h5 className="font-bold text-white text-xs truncate">
+                          {item.song?.title || 'Unknown Title'}
+                        </h5>
+                        <p className="text-[10px] text-slate-400 truncate flex items-center gap-1">
+                          <User className="w-2.5 h-2.5 text-cyan-400" />
+                          <span>{item.singer_name || 'Guest'}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="font-digital text-amber-400 text-xs font-bold shrink-0">
+                      {item.song?.code}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
           {/* Live Realtime Activity Monitor */}
-          <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col gap-3">
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-emerald-400" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
                   Realtime Activity
                 </h4>
               </div>
               <span className="text-[10px] font-mono text-slate-500">
-                {isSupabaseConfigured ? 'Supabase Broadcast' : 'Demo Channel'}
+                {isSupabaseConfigured ? 'Supabase Broadcast' : 'Demo Mode'}
               </span>
             </div>
 
             {/* Activity Stream */}
-            <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
+            <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto pr-1">
               {recentEvents.length === 0 ? (
-                <div className="py-6 text-center text-slate-600 font-mono text-xs">
+                <div className="py-3 text-center text-slate-600 font-mono text-[11px]">
                   Awaiting remote control events...
-                  <br />
-                  <span className="text-[10px] text-slate-700">
-                    (Open remote to send test broadcasts)
-                  </span>
                 </div>
               ) : (
-                recentEvents.map((evt, idx) => (
+                recentEvents.slice(0, 5).map((evt, idx) => (
                   <div
                     key={idx}
-                    className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800/80 text-xs font-mono flex items-center justify-between gap-2"
+                    className="p-1.5 px-2.5 rounded-lg bg-slate-900/60 border border-slate-800/80 text-[11px] font-mono flex items-center justify-between gap-2"
                   >
-                    <span className="text-cyan-400 font-bold">{evt.event}</span>
-                    <span className="text-slate-500 text-[10px]">{evt.timestamp}</span>
+                    <span className="text-cyan-400 font-bold truncate">{evt.event}</span>
+                    <span className="text-slate-500 text-[10px] shrink-0">{evt.timestamp}</span>
                   </div>
                 ))
               )}
@@ -252,8 +395,8 @@ export default function HostView() {
 
       {/* Footer */}
       <footer className="border-t border-slate-900/80 px-6 py-3 bg-slate-950/60 text-slate-600 text-[11px] font-mono flex items-center justify-between z-10">
-        <span>PinoyVideoke Host View v1.1.0</span>
-        <span>Supabase Realtime Engine (Phoenix Channels)</span>
+        <span>PinoyVideoke Host View v1.2.0</span>
+        <span>Supabase Realtime Engine • Postgres Replication</span>
       </footer>
     </div>
   );
