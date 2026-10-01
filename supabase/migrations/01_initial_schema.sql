@@ -45,11 +45,18 @@ CREATE INDEX IF NOT EXISTS queue_room_idx ON public.queue_items(room_code, posit
 ALTER TABLE public.songs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.queue_items ENABLE ROW LEVEL SECURITY;
 
--- 6. RLS Policies
--- Songs: Public can view all songs in the songbook
+-- Songs: Public can view and seed songs
 DROP POLICY IF EXISTS "Public can view songs" ON public.songs;
 CREATE POLICY "Public can view songs" ON public.songs
   FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public can insert songs" ON public.songs;
+CREATE POLICY "Public can insert songs" ON public.songs
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public can update songs" ON public.songs;
+CREATE POLICY "Public can update songs" ON public.songs
+  FOR UPDATE USING (true);
 
 -- Queue Items: Anyone can read, insert, update, or delete items within any room
 DROP POLICY IF EXISTS "Public can read and modify queue" ON public.queue_items;
