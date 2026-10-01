@@ -9,7 +9,7 @@ export const FALLBACK_SONGS: Song[] = [
     title: 'Anak',
     artist: 'Freddie Aguilar',
     language: 'Tagalog',
-    youtube_id: 'n4RjJKxrfSg',
+    youtube_id: 'zaYOvpl3Y1k',
     key_offset: 0,
     duration: 235,
     search_tokens: null,
@@ -30,7 +30,7 @@ export const FALLBACK_SONGS: Song[] = [
     title: 'Ang Huling El Bimbo',
     artist: 'Eraserheads',
     language: 'Tagalog',
-    youtube_id: 'WjK3rL4-s_4',
+    youtube_id: 'ih_1qXYDXO4',
     key_offset: 0,
     duration: 320,
     search_tokens: null,
@@ -50,7 +50,7 @@ export const FALLBACK_SONGS: Song[] = [
     title: 'Tala',
     artist: 'Sarah Geronimo',
     language: 'Tagalog',
-    youtube_id: 'kF5A11eC4y0',
+    youtube_id: 't-R0whXGk-Y',
     key_offset: 0,
     duration: 250,
     search_tokens: null,
@@ -65,10 +65,10 @@ export const FALLBACK_SONGS: Song[] = [
   {
     id: 4,
     code: '01004',
-    title: 'Bakit Pa',
-    artist: 'Jessa Zaragoza',
+    title: 'Bakit Pa Ba',
+    artist: 'Sarah Geronimo',
     language: 'Tagalog',
-    youtube_id: '5_zPzE4nQwQ',
+    youtube_id: '1v-WI4sf7Is',
     key_offset: 0,
     duration: 275,
     search_tokens: null,
@@ -104,7 +104,7 @@ export const FALLBACK_SONGS: Song[] = [
     title: 'Harana',
     artist: 'Parokya ni Edgar',
     language: 'Tagalog',
-    youtube_id: '5q-Xb3t54hI',
+    youtube_id: 'KwJaKOcI1c8',
     key_offset: 0,
     duration: 185,
     search_tokens: null,
@@ -115,6 +115,110 @@ export const FALLBACK_SONGS: Song[] = [
 [00:28.40]Nagkandarapa sa pagkanta
 [00:34.20]At may dalang gitara
 [00:39.10]Kahit na sintunado`,
+  },
+  {
+    id: 7,
+    code: '01007',
+    title: 'Narda',
+    artist: 'Kamikazee',
+    language: 'Tagalog',
+    youtube_id: 'SyPPsDViSK4',
+    key_offset: 0,
+    duration: 280,
+    search_tokens: null,
+    created_at: new Date().toISOString(),
+    lrc_content: `[00:18.50]Tila ibon kung lumipad
+[00:23.20]Ang puso kong sumasabay sa hangin
+[00:28.40]Kay sarap magmahal ng tunay
+[00:33.10]Awit ng pagsuyo ay maririnig`,
+  },
+  {
+    id: 8,
+    code: '01008',
+    title: 'Dancing Queen',
+    artist: 'ABBA',
+    language: 'English',
+    youtube_id: 'xFrGuyw1V8s',
+    key_offset: 0,
+    duration: 230,
+    search_tokens: null,
+    created_at: new Date().toISOString(),
+    lrc_content: `[00:19.20]You can dance, you can jive
+[00:24.40]Having the time of your life
+[00:28.10]See that girl, watch that scene
+[00:33.20]Digging the dancing queen`,
+  },
+  {
+    id: 9,
+    code: '01009',
+    title: 'Kahit Maputi Na Ang Buhok Ko',
+    artist: 'Rey Valera',
+    language: 'Tagalog',
+    youtube_id: '5vkq4NLrNWo',
+    key_offset: 0,
+    duration: 210,
+    search_tokens: null,
+    created_at: new Date().toISOString(),
+    lrc_content: `[00:15.10]Kung tayo ay matanda na
+[00:21.40]Sana'y di tayo magbago
+[00:27.20]Kailan man, nasaan ma'y
+[00:33.50]Ito ang pangarap ko`,
+  },
+  {
+    id: 10,
+    code: '01010',
+    title: 'Zombie',
+    artist: 'The Cranberries',
+    language: 'English',
+    youtube_id: '6Ejga4kJUts',
+    key_offset: 0,
+    duration: 305,
+    search_tokens: null,
+    created_at: new Date().toISOString(),
+    lrc_content: `[00:32.40]Another head hangs lowly
+[00:37.10]Child is slowly taken
+[00:41.50]And the violence caused such silence
+[00:46.20]Who are we mistaken?`,
+  },
+  {
+    id: 11,
+    code: '01011',
+    title: 'Torete',
+    artist: 'Moira Dela Torre',
+    language: 'Tagalog',
+    youtube_id: 'fPEWDeq3R_4',
+    key_offset: 0,
+    duration: 240,
+    search_tokens: null,
+    created_at: new Date().toISOString(),
+    lrc_content: `[00:15.30]Sandali na lang
+[00:20.10]Maaari bang pagbigyan
+[00:25.40]Aalis na nga
+[00:29.80]Maaari bang hawakan
+[00:34.50]Ang iyong mga kamay
+[00:39.20]Sana ay maabot ng langit
+[00:44.50]Ang iyong mga ngiti
+[00:49.10]Sana ay masilayan
+[00:54.00]Huwag kang mag-alala
+[00:59.20]Di ko ipipilit sa 'yo
+[01:03.50]Kahit na lilipad ang isip ko sa 'yo
+[01:09.10]Torete, torete, torete ako`,
+  },
+  {
+    id: 12,
+    code: '01012',
+    title: 'Total Eclipse of the Heart',
+    artist: 'Bonnie Tyler',
+    language: 'English',
+    youtube_id: 'lcOxhH8N3Bo',
+    key_offset: 0,
+    duration: 330,
+    search_tokens: null,
+    created_at: new Date().toISOString(),
+    lrc_content: `[00:16.10]Turn around, every now and then I get a little bit lonely
+[00:24.40]And you're never coming 'round
+[00:28.50]Turn around, every now and then I get a little bit tired
+[00:36.10]Of listening to the sound of my tears`,
   },
 ];
 

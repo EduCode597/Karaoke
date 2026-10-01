@@ -33,6 +33,10 @@ import type { QueueItem } from '../types/song';
 
 import YouTubePlayer, { YouTubePlayerHandle } from '../components/player/YouTubePlayer';
 import LyricsOverlay from '../components/player/LyricsOverlay';
+import PitchMonitor from '../components/player/PitchMonitor';
+import ScoreModal from '../components/player/ScoreModal';
+import { useMicrophonePitch } from '../hooks/useMicrophonePitch';
+import { calculateVideokeScore, VideokeScoreResult } from '../utils/scoring';
 
 export default function HostView() {
   const [roomCode, setRoomCode] = useState<string>(() => {
@@ -46,8 +50,28 @@ export default function HostView() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeCheer, setActiveCheer] = useState<string | null>(null);
 
+  // Scoring Modal State
+  const [isScoreModalOpen, setIsScoreModalOpen] = useState(false);
+  const [scoreData, setScoreData] = useState<{
+    result: VideokeScoreResult;
+    singer: string;
+    songTitle: string;
+  } | null>(null);
+
   const playerRef = useRef<YouTubePlayerHandle | null>(null);
   const stageContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Real-time Microphone Pitch Detection Engine
+  const {
+    isListening,
+    micPermission,
+    currentPitch,
+    rmsVolume,
+    startListening,
+    stopListening,
+    clearPitchHistory,
+    getPitchSamples,
+  } = useMicrophonePitch();
 
   // Keep room code persisted in session
   useEffect(() => {
@@ -80,22 +104,24 @@ export default function HostView() {
 
   const currentTrack = queue[0] || null;
 
-  // Advance to next song when playback finishes or skip is triggered
+  // Advance to next song
   const handleAdvanceQueue = useCallback(async () => {
     if (!currentTrack) return;
     try {
       await completeSongInQueue(currentTrack.id);
       setCurrentMillisecond(0);
+      clearPitchHistory();
       await fetchQueue();
     } catch (err) {
       console.error('Error advancing queue:', err);
     }
-  }, [currentTrack, fetchQueue]);
+  }, [currentTrack, clearPitchHistory, fetchQueue]);
 
   // Audio SFX generator for remote airhorn blasts
   const playAirhornSound = useCallback(() => {
     try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx();
       const freqs = [311.13, 370.0, 466.16];
       freqs.forEach((freq) => {
         const osc = ctx.createOscillator();
@@ -120,7 +146,39 @@ export default function HostView() {
     setTimeout(() => setActiveCheer(null), 2500);
   }, []);
 
-  // Broadcast Handler for sub-20ms Mobile Remote control commands
+  // Trigger Videoke Score Reveal upon song completion
+  const handleSongFinished = useCallback(async () => {
+    if (!currentTrack) return;
+
+    const samples = getPitchSamples();
+    const duration = currentTrack.song?.duration || 180;
+    const scoreResult = calculateVideokeScore(samples, duration);
+
+    setScoreData({
+      result: scoreResult,
+      singer: currentTrack.singer_name || 'Guest',
+      songTitle: currentTrack.song?.title || 'Song',
+    });
+    setIsScoreModalOpen(true);
+
+    // Broadcast score to remote phones
+    sendBroadcastRef.current?.('party:score_reveal', {
+      score: scoreResult.score,
+      tier: scoreResult.tier,
+      commentary: scoreResult.commentary,
+      singer: currentTrack.singer_name || 'Guest',
+      songTitle: currentTrack.song?.title || 'Song',
+    });
+  }, [currentTrack, getPitchSamples]);
+
+  // Dismiss score and advance
+  const handleScoreDismissed = async () => {
+    setIsScoreModalOpen(false);
+    setScoreData(null);
+    await handleAdvanceQueue();
+  };
+
+  // Broadcast Handler for Mobile Remote commands
   const handleBroadcast = useCallback(
     (event: string, payload: any) => {
       if (event === 'player:action') {
@@ -130,7 +188,7 @@ export default function HostView() {
         } else if (action === 'pause') {
           playerRef.current?.pause();
         } else if (action === 'skip') {
-          handleAdvanceQueue();
+          handleSongFinished();
         } else if (action === 'replay') {
           playerRef.current?.replay();
         }
@@ -143,10 +201,17 @@ export default function HostView() {
         fetchQueue();
       }
     },
-    [handleAdvanceQueue, playAirhornSound, triggerCheer, fetchQueue]
+    [handleSongFinished, playAirhornSound, triggerCheer, fetchQueue]
   );
 
-  const { status, onlineCount, recentEvents } = useRoomChannel(roomCode, true, handleBroadcast);
+  const { status, onlineCount, recentEvents, sendBroadcast } = useRoomChannel(
+    roomCode,
+    true,
+    handleBroadcast
+  );
+
+  const sendBroadcastRef = useRef(sendBroadcast);
+  sendBroadcastRef.current = sendBroadcast;
 
   useEffect(() => {
     fetchQueue();
@@ -185,6 +250,14 @@ export default function HostView() {
     }
   };
 
+  const handleToggleMic = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-videoke-bg text-slate-100 flex flex-col justify-between relative overflow-hidden crt-overlay">
       {/* Top TV Status Bar */}
@@ -204,7 +277,7 @@ export default function HostView() {
               <h1 className="text-lg font-black tracking-wider text-glow-cyan">TV HOST SCREEN</h1>
             </div>
             <p className="text-[11px] text-slate-400 font-mono">
-              Dual-Screen Realtime Player & Lyrics Engine
+              Dual-Screen Realtime Player & Scoring Engine
             </p>
           </div>
         </div>
@@ -285,7 +358,7 @@ export default function HostView() {
                   mode={playerMode}
                   onTimeUpdate={(ms) => setCurrentMillisecond(ms)}
                   onStateChange={(state) => setIsPlaying(state === 1)}
-                  onEnded={handleAdvanceQueue}
+                  onEnded={handleSongFinished}
                 />
 
                 {/* Real-time Synchronized LRC Lyrics Display */}
@@ -335,6 +408,15 @@ export default function HostView() {
             )}
           </div>
 
+          {/* Real-time Microphone Pitch & Volume Level Monitor */}
+          <PitchMonitor
+            isListening={isListening}
+            currentPitch={currentPitch}
+            rmsVolume={rmsVolume}
+            micPermission={micPermission}
+            onToggleMic={handleToggleMic}
+          />
+
           {/* Interactive Player Stage Control Toolbar */}
           {currentTrack && (
             <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-lg">
@@ -368,12 +450,12 @@ export default function HostView() {
                 </button>
 
                 <button
-                  onClick={handleAdvanceQueue}
+                  onClick={handleSongFinished}
                   className="py-2 px-3.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500/50 hover:text-cyan-400 text-slate-300 font-mono text-xs flex items-center gap-1.5 active:scale-95 transition-all"
-                  title="Skip to next queued track"
+                  title="Score and advance to next queued track"
                 >
                   <SkipForward className="w-4 h-4" />
-                  <span>Skip</span>
+                  <span>Finish / Score</span>
                 </button>
 
                 <button
@@ -430,9 +512,9 @@ export default function HostView() {
                 <span className="text-amber-400 font-bold">{roomCode}</span> ★ CONNECTED REMOTES:{' '}
                 <span className="text-cyan-400 font-bold">{onlineCount}</span> ★{' '}
                 {currentTrack
-                  ? `NOW PLAYING: ${currentTrack.singer_name} singing "${currentTrack.song?.title}" ★ `
+                  ? `NOW PERFORMING: ${currentTrack.singer_name} singing "${currentTrack.song?.title}" ★ `
                   : 'READY FOR SINGERS ★ '}
-                POWERED BY SUPABASE REALTIME & YOUTUBE ENGINE ★
+                MIC PITCH DETECTION & VIDEOKE SCORING ACTIVE ★
               </p>
             </div>
           </div>
@@ -572,10 +654,20 @@ export default function HostView() {
         </div>
       </main>
 
+      {/* Dramatic Fullscreen Videoke Score Reveal Modal */}
+      <ScoreModal
+        isOpen={isScoreModalOpen}
+        result={scoreData?.result || null}
+        singerName={scoreData?.singer}
+        songTitle={scoreData?.songTitle}
+        onClose={handleScoreDismissed}
+        autoDismissSeconds={9}
+      />
+
       {/* Footer */}
       <footer className="border-t border-slate-900/80 px-6 py-3 bg-slate-950/60 text-slate-600 text-[11px] font-mono flex items-center justify-between z-10">
-        <span>PinoyVideoke Host View v1.3.0</span>
-        <span>YouTube IFrame Player • 60fps Synchronized LRC Engine</span>
+        <span>PinoyVideoke Host View v1.4.0</span>
+        <span>YIN Pitch Algorithm • Web Audio Engine • Realtime Scoring</span>
       </footer>
     </div>
   );
