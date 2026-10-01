@@ -1,80 +1,44 @@
 # Day 4: TV Host Video Engine & Synchronized LRC Lyrics
-**Sprint:** 7-Day PinoyVideoke Implementation  
+**Sprint:** 7-Day PinoyVideoke Implementation (Serverless Cloud Edition)  
 **Phase:** Phase 3 – Player Engine & Lyric Synchronization  
-**Focus:** YouTube IFrame API, `react-lrc` Integration, High-Precision Timing Loops & Remote Playback  
+**Focus:** YouTube IFrame API, `react-lrc` Integration, High-Precision Timing Loops & Supabase Broadcast Controls  
 **Referenced Skills:** `frontend-developer`, `vercel-react-best-practices`, `ui-styling`, `andrej-karpathy-skill`
 
 ---
 
 ## 1. Day 4 Objectives & Architectural Goal
-Day 4 delivers the visual heart of the videoke experience on the primary TV screen:
+Day 4 delivers the centerpiece TV display featuring smooth YouTube video playback and synchronized lyrics:
 1. Embed and control the **YouTube IFrame API** in React without triggering component re-mounts.
-2. Build a high-performance **synchronization loop** that matches YouTube playback time to lyric timestamps.
+2. Build a high-performance **synchronization loop** using `requestAnimationFrame` to match video playback to lyrics.
 3. Integrate **`react-lrc`** with custom retro Filipino videoke styling (neon yellow/cyan glow and smooth line scrolling).
-4. Connect remote playback controls (`play`, `pause`, `skip`, `replay`) from mobile phones to the TV player.
-5. Implement automatic queue progression: when a video ends, the next song plays seamlessly.
+4. Connect remote playback controls (`play`, `pause`, `skip`, `replay`) from mobile phones to the TV player via **Supabase Realtime Broadcast**.
+5. Implement automatic queue progression: when a video ends, the next song in Supabase plays seamlessly.
 
 ---
 
-## 2. In-Depth Learning Module: Node.js & React Concepts
+## 2. In-Depth Learning Module: YouTube API & Lyric Synchronization
 
-### 2.1 React Deep Dive: Managing Non-React Imperative APIs (YouTube IFrame)
-The YouTube IFrame Player is an **imperative, non-React DOM library**. Integrating third-party imperative APIs is one of the most common challenges in advanced React development.
+### 2.1 React Deep Dive: Controlling Imperative YouTube API with `useRef`
+The YouTube IFrame Player is a non-React imperative API.
+- **Why `useRef` instead of `useState`?**
+  Storing the `player` object in `useState` triggers component re-renders whenever internal player properties change. We store the player instance inside a mutable `useRef` object (`playerRef.current`) to keep renders decoupled from playback state.
+- **Idempotent Script Loading:**
+  We inject the YouTube IFrame API script tag dynamically into `<head>` only once, using a custom hook `useYouTubeApi()`.
 
-#### Rule 1: Never store player instances in `useState`
-```typescript
-// ❌ WRONG: Causes re-renders whenever the player instance updates
-const [player, setPlayer] = useState<YT.Player | null>(null);
-
-// ✅ RIGHT: Store player instance in a useRef
-const playerRef = useRef<YT.Player | null>(null);
-```
-`useRef` holds a mutable reference across renders without triggering a re-render when mutated.
-
-#### Rule 2: Script Injection & StrictMode Idempotence
-Ensure the YouTube IFrame API script is only injected once into `<head>`:
-```typescript
-export function useYouTubeApi() {
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
-    if (window.YT && window.YT.Player) {
-      setIsLoaded(true);
-      return;
-    }
-
-    // Check if script tag already exists
-    if (!document.getElementById('youtube-iframe-script')) {
-      const tag = document.createElement('script');
-      tag.id = 'youtube-iframe-script';
-      tag.src = 'https://www.youtube.com/iframe_api';
-      document.body.appendChild(tag);
-    }
-
-    window.onYouTubeIframeAPIReady = () => {
-      setIsLoaded(true);
-    };
-  }, []);
-
-  return isLoaded;
-}
-```
-
-### 2.2 React Performance: High-Precision Sync Loop (`requestAnimationFrame`)
-Lyrics in videoke must illuminate exactly as the singer speaks each word. If you use `setInterval(fn, 500)`, timing will stutter, drift, and cause jagged scrolling.
-
-- **Why `requestAnimationFrame` (rAF)?**
-  `requestAnimationFrame` synchronizes directly with the monitor's refresh rate (typically 60Hz or 120Hz, ~16.6ms intervals).
-- **Avoiding React Re-render Bottlenecks:**
-  Instead of updating state on every single frame (which would re-render the entire component tree 60 times a second), only update state when the timestamp crosses into a new lyric line, or pass `currentMillisecond` down to an isolated lyric component:
+### 2.2 60fps Lyric Sync Loop (`requestAnimationFrame`)
+Lyrics in videoke must light up in exact synchronization with the vocals.
+- **Why NOT `setInterval`?**
+  Timers in JavaScript drift, jitter, and get throttled when the tab loses focus.
+- **The `requestAnimationFrame` Solution:**
+  `requestAnimationFrame` aligns with the display's 60Hz or 120Hz refresh cycle (~16.6ms intervals), polling `playerRef.current.getCurrentTime()` for sub-frame accuracy.
   ```typescript
   useEffect(() => {
     let animId: number;
 
     const syncLoop = () => {
-      if (playerRef.current && playerRef.current.getPlayerState() === YT.PlayerState.PLAYING) {
-        const currentTimeSec = playerRef.current.getCurrentTime();
-        setCurrentTimeMs(Math.floor(currentTimeSec * 1000));
+      if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+        const timeSec = playerRef.current.getCurrentTime();
+        setCurrentMillisecond(Math.floor(timeSec * 1000));
       }
       animId = requestAnimationFrame(syncLoop);
     };
@@ -84,60 +48,60 @@ Lyrics in videoke must illuminate exactly as the singer speaks each word. If you
   }, []);
   ```
 
-### 2.3 LRC Format & Parsing
-The standard LRC format looks like:
-```text
-[00:14.25]Nang isilang ka sa mundong ito
-[00:21.80]Laking tuwa ng magulang mo
-[00:28.45]At ang kamay nila ang iyong ilaw
-```
-The `react-lrc` library automatically converts this string into timed line objects and manages active line transitions based on `currentMillisecond`.
+### 2.3 Remote Control via Supabase Realtime Broadcast
+When someone presses "Skip" or "Pause" on their phone:
+1. Mobile Remote dispatches:
+   ```typescript
+   channel.send({
+     type: 'broadcast',
+     event: 'player:action',
+     payload: { action: 'skip' }
+   });
+   ```
+2. TV Host receives event in $<20\text{ms}$ and executes the corresponding player method:
+   ```typescript
+   channel.on('broadcast', { event: 'player:action' }, ({ payload }) => {
+     switch (payload.action) {
+       case 'play': playerRef.current?.playVideo(); break;
+       case 'pause': playerRef.current?.pauseVideo(); break;
+       case 'skip': handleAdvanceQueue(); break;
+       case 'replay': playerRef.current?.seekTo(0, true); break;
+     }
+   });
+   ```
 
 ---
 
 ## 3. Step-by-Step Implementation Tasks
 
 ### Task 1: Controlled YouTube Player (`client/src/components/player/YouTubePlayer.tsx`)
-1. Create a container `div` with responsive 16:9 aspect ratio (`aspect-video w-full bg-black`).
-2. Initialize `new window.YT.Player` targeting the container ID.
-3. Bind player event listeners:
-   - `onReady`: Autoplay and set initial volume.
-   - `onStateChange`: Listen for state `0` (`YT.PlayerState.ENDED`) -> emit `player:ended` over Socket.io.
-   - `onError`: Handle video restriction/embedding errors gracefully.
+1. Create a 16:9 container (`aspect-video w-full bg-black relative overflow-hidden`).
+2. Initialize `new window.YT.Player` with parameters:
+   - `autoplay: 1`
+   - `controls: 0` (Hide default YouTube controls for an authentic videoke machine feel)
+   - `rel: 0` (Prevent related videos at end of playback)
+3. Handle player lifecycle events:
+   - `onStateChange: 0` (Video Ended) -> mark song completed in Supabase and trigger next song.
 
 ### Task 2: Synchronized Lyrics Overlay (`client/src/components/player/LyricsOverlay.tsx`)
 1. Integrate `react-lrc` inside a floating semi-transparent glass panel at the bottom of the video.
-2. Styling requirements (Authentic Videoke):
-   - **Active line:** Bright Amber/Yellow (`#fde047`), bold monospace font, glowing drop shadow (`drop-shadow-[0_0_12px_rgba(253,224,71,0.8)]`), scale `1.1`.
+2. Authentic Filipino Videoke styling:
+   - **Active line:** Glowing Yellow/Amber (`#fde047`), bold monospace font, enlarged bounce scale (`scale-110`), glowing drop shadow.
    - **Upcoming lines:** Slate/Gray (`#94a3b8`), opacity `0.6`.
-3. Support dual-line preview so singers know the next verse before it begins.
+3. Support dual-line subtitle preview so singers can anticipate upcoming verses.
 
-### Task 3: Remote Playback Socket Integration
-1. Listen for socket event `player:control` on the TV Host view:
+### Task 3: Dual Background Toggle
+Provide a button on the TV Host screen:
+- **Mode A (Default):** Native YouTube video background.
+- **Mode B (Nostalgic KTV):** Muted retro videoke background loop (nature, tropical beach, 90s city lights) with lyrics displayed front and center.
+
+### Task 4: Queue Auto-Progression in Supabase
+1. When YouTube signals playback completion (`YT.PlayerState.ENDED`):
+2. Update the completed song status in Supabase:
    ```typescript
-   socket.on('player:control', ({ command }) => {
-     switch (command) {
-       case 'play':
-         playerRef.current?.playVideo();
-         break;
-       case 'pause':
-         playerRef.current?.pauseVideo();
-         break;
-       case 'skip':
-         handleSkipToNextSong();
-         break;
-       case 'replay':
-         playerRef.current?.seekTo(0, true);
-         playerRef.current?.playVideo();
-         break;
-     }
-   });
+   await supabase.from('queue_items').update({ status: 'completed' }).eq('id', currentQueueId);
    ```
-
-### Task 4: Queue Auto-Progression
-1. When a video ends, the TV Host emits `song:completed`.
-2. The server shifts the completed song from the queue and broadcasts the new active song to all room participants.
-3. The TV Host automatically loads the new `youtube_id` and fetches its LRC lyrics.
+3. Load the next queued song and fetch its synced `.lrc` lyrics.
 
 ---
 
@@ -153,7 +117,7 @@ git checkout -b feat/day-4-player-and-lyrics-sync
 2. `feat(client): build controlled YouTubePlayer component with lifecycle state events`
 3. `feat(client): implement requestAnimationFrame sync loop for millisecond-level time tracking`
 4. `feat(client): integrate react-lrc with custom neon videoke styling and dual-line layout`
-5. `feat(server): wire player:control commands (play/pause/skip/replay) via Socket.io`
+5. `feat(client): wire remote player controls via Supabase Realtime Broadcast`
 6. `feat(client): implement automatic queue progression when song playback completes`
 
 ---
@@ -161,12 +125,12 @@ git checkout -b feat/day-4-player-and-lyrics-sync
 ## 5. Karpathy Verification & Definition of Done (DoD)
 
 Apply the **Four Checks** (`andrej-karpathy-skill`):
-1. **Assumption:** YouTube videos selected in seed data have embedding enabled without geographic blocks.
-2. **Changed:** TV Host player component, lyric synchronizer, and remote playback command router.
+1. **Assumption:** Seeded YouTube video IDs have embedding enabled.
+2. **Changed:** TV Host player component, lyric synchronizer, and Supabase broadcast command router.
 3. **Verified:**
    - [ ] Queue "Anak" by Freddie Aguilar -> Video starts playing on the TV Host view.
-   - [ ] Lyrics appear at the bottom of the screen and highlight synchronously with the singer.
-   - [ ] Tap "Pause" on the mobile remote -> TV video pauses instantly.
+   - [ ] Lyrics appear at the bottom of the screen and illuminate in lockstep with the vocals.
+   - [ ] Tap "Pause" on mobile remote -> Video pauses immediately on the TV.
    - [ ] Tap "Play" on mobile -> Video resumes.
-   - [ ] Tap "Skip" on mobile -> Video stops, next song in queue loads automatically.
-4. **Remaining Risk:** YouTube autoplay policies require at least one user interaction on the page before playing with sound (we include a "Start Session" button on the TV view).
+   - [ ] Tap "Skip" on mobile -> Current song ends and next queued song plays.
+4. **Remaining Risk:** YouTube autoplay policies require at least one user interaction on the page before playing audio. (Add "Start Videoke Session" button on the TV view).

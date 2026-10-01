@@ -1,5 +1,5 @@
 # Day 5: Web Audio API, YIN Pitch Detection & Scoring System
-**Sprint:** 7-Day PinoyVideoke Implementation  
+**Sprint:** 7-Day PinoyVideoke Implementation (Serverless Cloud Edition)  
 **Phase:** Phase 4 – Pitch Detection & Scoring System  
 **Focus:** Web Audio API, Microphone Input, YIN Pitch Algorithm, 100-Point Videoke Scoring & Fanfare SFX  
 **Referenced Skills:** `frontend-developer`, `tdd`, `best-practices`, `andrej-karpathy-skill`
@@ -11,8 +11,8 @@ Day 5 implements the most iconic feature of Filipino videoke: **The Videoke Scor
 1. Capture real-time microphone audio using `navigator.mediaDevices.getUserMedia`.
 2. Construct a **Web Audio processing graph** with an `AnalyserNode` without creating audio feedback loops.
 3. Integrate the **YIN Pitch Detection algorithm** (`pitchfinder`) to extract fundamental frequencies ($F_0$) in Hz and map them to musical notes.
-4. Build the authentic **100-Point Videoke Scoring Engine** that scores the singer upon song completion.
-5. Create the dramatic fullscreen **Score Reveal Screen** with animated rolling scores and trumpet fanfare / applause.
+4. Build the authentic **100-Point Videoke Scoring Engine** that evaluates the singer upon song completion.
+5. Create the dramatic fullscreen **Score Reveal Screen** with animated rolling scores, trumpet fanfare / applause, and broadcast the final score to guest mobile phones via Supabase Realtime.
 
 ---
 
@@ -50,7 +50,7 @@ Human singing does not produce pure sine waves; it produces rich harmonic overto
   - Concert A ($A_4$) = $440\text{ Hz}$ -> MIDI Note 69.
 
 ### 2.3 The Authentic Filipino Videoke Scoring Psychology
-In real-world commercial videoke machines (Megapro, TJ Media, Platinum), nobody wants a mathematical, ruthless vocal grading system that gives a drunk uncle a 25 out of 100 at a birthday party!
+In commercial videoke machines (Megapro, TJ Media, Platinum), nobody wants a mathematical, ruthless vocal grading system that gives a party guest a 25 out of 100!
 The scoring algorithm must be **festive and engaging**:
 1. **Activity-Weighted Base:** If the user sings continuously and energetically, give a solid baseline (~75-80 pts).
 2. **Pitch Accuracy Multiplier:** Add 0-20 points based on pitch stability and in-tune intervals.
@@ -99,10 +99,8 @@ The scoring algorithm must be **festive and engaging**:
 ### Task 2: Scoring Engine (`client/src/utils/scoring.ts`) (Skill: `tdd`)
 1. Create unit tests in `scoring.test.ts` to verify score calculations.
 2. Track pitch samples accumulated throughout the song.
-3. Compute score based on:
-   - Vocal participation ratio (was someone actually singing into the mic?).
-   - Pitch stability index.
-   - Output calibrated 0-100 integer score and title tier.
+3. Compute calibrated 0-100 integer score and title tier.
+4. Broadcast score result over Supabase Realtime channel so guest phones celebrate simultaneously!
 
 ### Task 3: Score Reveal Modal (`client/src/components/player/ScoreModal.tsx`)
 1. Render full-screen party overlay when `showScore` triggers.
@@ -141,7 +139,7 @@ Apply the **Four Checks** (`andrej-karpathy-skill`):
 1. **Assumption:** User gives microphone permission to the host browser tab.
 2. **Changed:** Web Audio pitch detection pipeline, scoring calculation logic, and ScoreModal.
 3. **Verified:**
-   - [ ] Sing a steady sustained note into the microphone -> Console or UI pitch monitor reflects active frequency (e.g. `440 Hz -> Note 69 (A4)`).
+   - [ ] Sing a steady sustained note into the microphone -> Pitch monitor reflects active frequency (e.g. `440 Hz -> Note 69 (A4)`).
    - [ ] Let song play to the end -> Song finishes -> Screen transitions to `ScoreModal`.
    - [ ] Score rolls from 00 to 95 -> Trumpet fanfare and cheering audio plays through speakers.
    - [ ] Score modal closes after 8 seconds and next song starts automatically.

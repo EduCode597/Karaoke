@@ -1,7 +1,7 @@
 # Day 6: Authentic Videoke UI Polish, Key Controls & Party Soundboard
-**Sprint:** 7-Day PinoyVideoke Implementation  
+**Sprint:** 7-Day PinoyVideoke Implementation (Serverless Cloud Edition)  
 **Phase:** Phase 5 – Tailwind Styling, Visual FX & Party Interactivity  
-**Focus:** Nostalgic Dark Neon Theme, Top Ticker Marquee, Key Transposition & Live Soundboard  
+**Focus:** Nostalgic Dark Neon Theme, Top Ticker Marquee, Key Transposition & Realtime Soundboard  
 **Referenced Skills:** `ui-styling`, `responsive-web-design`, `web-design-guidelines`, `security-auditor`, `andrej-karpathy-skill`
 
 ---
@@ -11,8 +11,8 @@ Day 6 elevates the application from a functional utility to an authentic, visual
 1. Apply the complete **Nostalgic Neon Design System** using Tailwind CSS (Obsidian dark background, neon cyan, laser magenta, and glowing amber LED displays).
 2. Build the classic **TV Top Ticker Marquee** displaying room pairing status and continuous "UP NEXT: [Singer] - [Song Title]" scrolling text.
 3. Implement **Key Transpose / Pitch Offset Controls** (`-6` to `+6` semitones) so singers can adjust tracks to their vocal range.
-4. Build the interactive **Mobile Party Soundboard** (Airhorn, Clapping, Drumroll, Gong) broadcasting live audio triggers to the TV.
-5. Implement socket rate-limiting to prevent soundboard audio spam.
+4. Build the interactive **Mobile Party Soundboard** (Airhorn, Clapping, Drumroll, Gong) broadcasting live audio triggers to the TV via **Supabase Realtime Broadcast**.
+5. Implement client-side debounce and cooldown limits to prevent soundboard audio spam.
 
 ---
 
@@ -22,7 +22,7 @@ Day 6 elevates the application from a functional utility to an authentic, visual
 Designing for a 1080p/4K TV viewed from 10 feet away is fundamentally different from designing a desktop website:
 - **Visual Hierarchy & Contrast:** Small body text (14px) is illegible on a TV. Typography must use high contrast ratios, large scale (`text-2xl` to `text-6xl`), and bold fonts (`font-black`, `font-mono`).
 - **Nostalgic CRT & Neon Glow Shadows:**
-  We define custom Tailwind utilities for that distinctive 90s karaoke bar aesthetic:
+  We configure custom Tailwind utilities for that distinctive 90s karaoke bar aesthetic:
   ```javascript
   // tailwind.config.js
   module.exports = {
@@ -46,7 +46,7 @@ Designing for a 1080p/4K TV viewed from 10 feet away is fundamentally different 
   }
   ```
 
-### 2.2 Top Ticker Marquee (CSS Animations vs JS)
+### 2.2 Top Ticker Marquee (CSS Keyframes vs JS)
 In vintage videoke bars, a scrolling text marquee at the top of the TV alerts partygoers who is singing next.
 - **Why pure CSS keyframes over JavaScript?**
   Running JavaScript `setInterval` for text animation causes layout thrashing and CPU load. A pure CSS `transform: translateX()` animation is offloaded directly to the GPU compositor thread:
@@ -67,31 +67,27 @@ In vintage videoke bars, a scrolling text marquee at the top of the TV alerts pa
 Singers often need to lower or raise the key of a song to match their natural vocal tessitura:
 - Each semitone step represents a frequency ratio of $2^{1/12} \approx 1.05946$.
 - On Web Audio playback, pitch shifting is achieved via `AudioBufferSourceNode.playbackRate` or a phase vocoder worklet.
-- For YouTube embeds, we provide an intuitive on-screen Transpose indicator (`-6` to `+6`) with playback rate detune or vocal key recommendation.
+- For YouTube embeds, we provide an intuitive on-screen Transpose indicator (`-6` to `+6`) with vocal key recommendation and playback rate detune.
 
-### 2.4 Party Soundboard & Socket Rate-Limiting (Skill: `security-auditor`)
-When you give party guests an **Airhorn button**, someone will inevitably tap it 20 times per second!
-Without rate-limiting:
-- The server crashes from event flooding.
-- The TV host browser audio buffer clips and distorts into painful buzzing noise.
-
-**The Token Bucket / Cooldown Pattern on Server:**
+### 2.4 Party Soundboard via Supabase Broadcast & Cooldown Throttling
+When guests tap the **Airhorn button**, we want instant audio on the TV without server crashes:
 ```typescript
-const lastSfxTime = new Map<string, number>();
+// client/src/components/remote/Soundboard.tsx
+let lastTrigger = 0;
 
-socket.on('party:sfx', ({ roomCode, sfxType }) => {
+export function triggerSfx(channel: RealtimeChannel, sfxType: string) {
   const now = Date.now();
-  const lastTime = lastSfxTime.get(socket.id) || 0;
+  // 800ms cooldown to prevent audio buffer distortion
+  if (now - lastTrigger < 800) return;
+  lastTrigger = now;
 
-  // Enforce 1-second cooldown per client
-  if (now - lastTime < 1000) {
-    return; // Silently drop spam
-  }
-
-  lastSfxTime.set(socket.id, now);
-  // Broadcast audio trigger to the TV Host
-  io.to(roomCode).emit('party:play_sfx', { sfxType });
-});
+  triggerHaptic(20);
+  channel.send({
+    type: 'broadcast',
+    event: 'party:sfx',
+    payload: { sfxType }
+  });
+}
 ```
 
 ---
@@ -116,7 +112,7 @@ socket.on('party:sfx', ({ roomCode, sfxType }) => {
    - `[ # ]` Sharp / Transpose Up (+1)
    - `[ 0 ]` Reset Key
 2. Display current key offset badge (`Key: +2` or `Key: 0 (Original)`).
-3. Emit `player:transpose` over Socket.io.
+3. Broadcast `player:transpose` over Supabase Realtime channel.
 
 ### Task 4: Interactive Soundboard Drawer (`client/src/components/remote/Soundboard.tsx`)
 1. Mobile bottom sheet or tab with vibrant sound effect buttons:
@@ -125,7 +121,7 @@ socket.on('party:sfx', ({ roomCode, sfxType }) => {
    - 🥁 **DRUMROLL** (Dramatic tension)
    - 🔔 **GONG** (Comedic fail sound)
 2. Add quick haptic response on mobile tap.
-3. TV Host receives `party:play_sfx` and plays high-fidelity audio clip through party speakers.
+3. TV Host receives `party:sfx` and plays high-fidelity audio clip through party speakers.
 
 ---
 
@@ -140,9 +136,9 @@ git checkout -b feat/day-6-videoke-ui-and-soundboard
 1. `style(client): configure custom Tailwind neon color palette, glows, and scanlines`
 2. `feat(client): build animated TickerBanner component with continuous marquee for TV view`
 3. `feat(client): implement KeyControls component for pitch transpose adjustment`
-4. `feat(server): add rate-limiting cooldown middleware for party soundboard socket events`
-5. `feat(client): build mobile Soundboard drawer with Airhorn, Cheer, and Gong triggers`
-6. `feat(client): integrate audio sound effects synthesizer on TV Host view`
+4. `feat(client): build mobile Soundboard drawer with Airhorn, Cheer, and Gong triggers`
+5. `feat(client): add audio sound effects synthesizer on TV Host view`
+6. `feat(client): implement cooldown throttling for party soundboard triggers`
 
 ---
 
@@ -154,6 +150,6 @@ Apply the **Four Checks** (`andrej-karpathy-skill`):
 3. **Verified:**
    - [ ] TV Host top banner displays smooth scrolling marquee without stuttering or CPU spikes.
    - [ ] Tap "Airhorn" on mobile remote -> Iconic reggae siren sounds through TV speakers over the music.
-   - [ ] Rapidly spam "Airhorn" 10 times -> Server allows 1 sound per second, blocking ear-shattering distortion.
+   - [ ] Rapidly spam "Airhorn" 10 times -> Soundboard throttles cleanly, blocking audio clipping.
    - [ ] Adjust Key transpose to `+2` -> Key indicator reflects on both mobile remote and TV host screen.
 4. **Remaining Risk:** Audio clipping if soundboard volume is too loud relative to music. (Set SFX volume gain node to 0.7 max).

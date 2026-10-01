@@ -1,193 +1,186 @@
-# Day 1: Foundation, SQLite Database & Songbook Ingestion Engine
-**Sprint:** 7-Day PinoyVideoke Implementation  
-**Phase:** Phase 1 – Core Backend & Database Setup  
-**Focus:** Project Scaffolding, SQLite Architecture, Knex Migrations, REST API & Git Hygiene  
+# Day 1: Supabase Setup, Database Schema & Songbook Ingestion
+**Sprint:** 7-Day PinoyVideoke Implementation (Serverless Cloud Edition)  
+**Phase:** Phase 1 – Cloud Database & Data Access Layer  
+**Focus:** Supabase Setup, PostgreSQL Schema, Row Level Security (RLS), Song Seeding & TypeScript Generation  
 **Referenced Skills:** `backend-architect`, `database-optimizer`, `setup-pre-commit`, `andrej-karpathy-skill`, `tdd`
 
 ---
 
 ## 1. Day 1 Objectives & Architectural Goal
-The primary objective of Day 1 is to build the bedrock of the entire application:
-1. Establish a clean, maintainable monorepo workspace for **Node.js (Backend)** and **React (Frontend)**.
-2. Setup Git safety rails, Husky pre-commit hooks, and a clean GitHub workflow.
-3. Design and migrate the relational database schema using SQLite and Knex.
-4. Populate the database with classic Filipino Videoke (OPM) tracks and English staples.
-5. Build and verify high-performance REST API endpoints for 5-digit song code resolution and fuzzy search.
+The primary objective of Day 1 is to build the cloud-hosted data foundation for PinoyVideoke:
+1. Initialize the modern **React 18 + Vite + TypeScript** workspace with Tailwind CSS.
+2. Configure a free cloud-hosted **Supabase PostgreSQL** project.
+3. Design and execute the database schema for `songs` and `queue_items` with Row Level Security (RLS) policies.
+4. Populate the database with 30+ iconic Filipino Videoke hits (OPM staples and English favorites) with YouTube IDs and synced `.lrc` lyrics.
+5. Generate end-to-end TypeScript types directly from Supabase schema using the Supabase CLI.
 
 ---
 
-## 2. In-Depth Learning Module: Node.js & React Concepts
+## 2. In-Depth Learning Module: Supabase & React Concepts
 
-### 2.1 Node.js Deep Dive: The Express Middleware Pipeline & Async Handlers
-In Node.js, Express operates as a pipeline of functions called **middleware**. Every incoming HTTP request flows sequentially through this chain:
+### 2.1 Backend-as-a-Service (BaaS) Architecture with Supabase
+In a traditional architecture, you write Express route handlers (`/api/songs`) that query a database and return JSON.
+With **Supabase**:
 ```
-Request ──► [cors()] ──► [express.json()] ──► [Route Handler] ──► Response
-                                                     │
-                                             (Throws Error)
-                                                     ▼
-                                          [Global Error Middleware]
+React Client (Vercel) ──► [@supabase/supabase-js] ──► Supabase PostgREST ──► PostgreSQL (Cloud)
 ```
-- **Why this matters for PinoyVideoke:** 
-  In a videoke machine, song lookups must execute in under 30ms. We configure `express.json()` with reasonable payload limits, enable `cors` specifically for our local network, and avoid blocking the Node.js single-threaded event loop by keeping database operations strictly asynchronous.
-- **Async/Await & Unhandled Rejections:**
-  In Express 4, unhandled promise rejections inside async route handlers can cause the process to hang or crash if not caught. We implement an `asyncHandler` wrapper:
-  ```typescript
-  export const asyncHandler = (fn: Function) => 
-    (req: Request, res: Response, next: NextFunction) => {
-      Promise.resolve(fn(req, res, next)).catch(next);
-    };
-  ```
+- **PostgREST:** Supabase automatically exposes an instant, high-performance RESTful API directly from your PostgreSQL schema.
+- **Why this is better for free cloud hosting:**
+  1. **Zero Server Maintenance:** You don't need a Node.js server running 24/7 on Render or Railway.
+  2. **No Cold-Start Delays:** Free Node.js instances go to sleep after 15 minutes of inactivity and take 45-60 seconds to wake up. Supabase stays active and responds in $<30\text{ms}$.
+  3. **No SQLite Ephemeral Wipeouts:** PostgreSQL data is permanently stored in the cloud, even when the frontend redeploys on Vercel.
 
-### 2.2 Database Architecture: SQLite & Indexing Strategies (Skill: `database-optimizer`)
-We choose **SQLite** because it is zero-config, embedded, and lightning fast for local party setups (stored as a single file, e.g., `pinoyvideoke.sqlite3`).
-- **The B-Tree Index on 5-Digit Codes:**
-  Filipino videoke depends on rapid 5-digit number entry (e.g. typing `04521` on a remote).
-  Without an index, querying `SELECT * FROM songs WHERE code = '04521'` requires a **Full Table Scan** ($O(N)$). By placing a unique B-Tree index on `code`, queries resolve in $O(\log N)$ time, typically $<2\text{ms}$.
-- **Fuzzy Search Indexing:**
-  Users searching "Huling El Bimbo" or "Eraserheads" will query `title` and `artist`. We write Knex queries utilizing SQL `LIKE` with wildcards (`%query%`) and lowercase normalization.
+### 2.2 PostgreSQL Schema & Indexing (Skill: `database-optimizer`)
+- **Unique B-Tree Index on 5-Digit Codes:**
+  Videoke machines rely on instantaneous 5-digit numeric entry (e.g. typing `04521`).
+  By placing a `UNIQUE` constraint and index on `code`, lookups execute in $O(\log N)$ time ($<5\text{ms}$).
+- **PostgreSQL Full-Text Search (`tsvector` & `GIN` Index):**
+  Instead of slow SQL `LIKE %query%` searches that scan every row, PostgreSQL provides native lexeme tokenization:
+  ```sql
+  -- Add full-text search column and GIN index
+  ALTER TABLE songs ADD COLUMN search_tokens tsvector 
+    GENERATED ALWAYS AS (to_tsvector('english', title || ' ' || artist)) STORED;
+  
+  CREATE INDEX songs_search_idx ON songs USING GIN(search_tokens);
+  ```
+  Users searching `"bimbo"` or `"eraserheads"` will match in $<10\text{ms}$ across thousands of records.
 
-### 2.3 React & Vite Scaffolding Deep Dive (Skill: `frontend-developer`)
-- **Why Vite instead of Create React App?**
-  Vite leverages native ES Modules (ESM) in modern browsers during development. It starts instantly and reloads hot modules (HMR) in milliseconds, which is critical when we start tuning lyric animations and audio pitch canvas on Days 4 and 5.
-- **Client/Server Monorepo Organization:**
-  ```
-  Karaoke/
-  ├── package.json           # Root workspace script runner
-  ├── .husky/                # Git commit hooks (Husky v9)
-  ├── .lintstagedrc          # Auto-formatting on staged files
-  ├── server/                # Node.js + Express + Knex + Socket.io
-  │   ├── src/
-  │   │   ├── db/            # Knex config, migrations, seeds
-  │   │   ├── routes/        # /api/songs, /api/lyrics
-  │   │   ├── index.ts       # Server entry point
-  │   └── tsconfig.json
-  └── client/                # React 18 + Vite + Tailwind CSS
-      ├── src/
-      │   ├── api/           # Typed API fetchers
-      │   ├── App.tsx
-      └── vite.config.ts
-  ```
+### 2.3 Row Level Security (RLS) Best Practices (Skill: `security-auditor`)
+Supabase uses PostgreSQL's native **Row Level Security**:
+- By default, tables are locked down.
+- For `songs`: We enable public read access (any guest can view the songbook).
+- For `queue_items`: We enable room-based read/insert permissions so guests can queue tracks without needing account passwords.
 
 ---
 
 ## 3. Step-by-Step Implementation Tasks
 
-### Task 1: Initialize Git Guardrails & Pre-commit Hooks (Skill: `setup-pre-commit`)
-1. Create `.gitignore` to prevent committing `node_modules`, `.env`, SQLite database files, and build outputs.
-2. Configure Prettier:
-   ```json
-   // .prettierrc
-   {
-     "semi": true,
-     "singleQuote": true,
-     "tabWidth": 2,
-     "trailingComma": "es5"
-   }
-   ```
-3. Initialize Husky and `lint-staged`:
+### Task 1: Initialize Workspace & Git Guardrails (Skill: `setup-pre-commit`)
+1. Create client with Vite:
    ```bash
-   npm install -D husky lint-staged prettier
+   npm create vite@latest client -- --template react-ts
+   cd client
+   npm install @supabase/supabase-js lucide-react clsx tailwind-merge
+   npm install -D tailwindcss postcss autoprefixer husky lint-staged prettier
+   npx tailwindcss init -p
+   ```
+2. Configure `.env.example`:
+   ```bash
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-key
+   ```
+3. Initialize Husky pre-commit hooks (`setup-pre-commit`):
+   ```bash
    npx husky init
    ```
-4. Create `.husky/pre-commit`:
-   ```bash
-   npx lint-staged
-   npm run typecheck --workspaces --if-present
-   ```
 
-### Task 2: Backend Scaffolding & Database Migrations (Skill: `backend-architect`)
-1. Initialize `/server`:
-   ```bash
-   cd server
-   npm init -y
-   npm install express cors dotenv knex sqlite3
-   npm install -D typescript tsx @types/express @types/cors @types/node
-   ```
-2. Configure `knexfile.ts`:
-   ```typescript
-   import type { Knex } from 'knex';
-   import path from 'path';
+### Task 2: Supabase Database Schema Migration (`supabase/migrations/01_initial_schema.sql`)
+Execute the following SQL in your Supabase SQL Editor:
+```sql
+-- Create Songs Table
+CREATE TABLE public.songs (
+  id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  code VARCHAR(5) UNIQUE NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  artist VARCHAR(255) NOT NULL,
+  language VARCHAR(50) DEFAULT 'English',
+  youtube_id VARCHAR(50) NOT NULL,
+  lrc_content TEXT,
+  key_offset INT DEFAULT 0,
+  duration INT DEFAULT 0,
+  search_tokens tsvector GENERATED ALWAYS AS (to_tsvector('english', title || ' ' || artist)) STORED,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-   const config: Knex.Config = {
-     client: 'sqlite3',
-     connection: {
-       filename: path.resolve(__dirname, 'data/videoke.sqlite3')
-     },
-     useNullAsDefault: true,
-     migrations: {
-       directory: path.resolve(__dirname, 'src/db/migrations')
-     },
-     seeds: {
-       directory: path.resolve(__dirname, 'src/db/seeds')
-     }
-   };
+-- Full-Text Search GIN Index
+CREATE INDEX songs_search_idx ON public.songs USING GIN(search_tokens);
+CREATE INDEX songs_code_idx ON public.songs(code);
 
-   export default config;
-   ```
-3. Create migration `20261001_create_songs_and_queue.ts`:
-   - `songs`: `id`, `code` (string, unique index), `title`, `artist`, `language`, `youtube_id`, `lrc_content`, `key_offset`, `duration`.
-   - `queue_items`: `id` (uuid), `room_code`, `song_id`, `singer_name`, `position`, `status`.
+-- Create Queue Items Table
+CREATE TABLE public.queue_items (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  room_code VARCHAR(10) NOT NULL,
+  song_id BIGINT REFERENCES public.songs(id) ON DELETE CASCADE,
+  singer_name VARCHAR(100) DEFAULT 'Guest',
+  position INT NOT NULL,
+  status VARCHAR(20) DEFAULT 'queued',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-### Task 3: Seed Classic OPM & English Videoke Hits
-Create `src/db/seeds/01_songs.ts` with authentic Filipino karaoke favorites:
-- `01001` - "Anak" by Freddie Aguilar (`youtubeId: "n4RjJKxrfSg"`)
-- `01002` - "Ang Huling El Bimbo" by Eraserheads (`youtubeId: "WjK3rL4-s_4"`)
-- `01003` - "Tala" by Sarah Geronimo (`youtubeId: "kF5A11eC4y0"`)
-- `01004` - "Bakit Pa" by Jessa Zaragoza (`youtubeId: "5_zPzE4nQwQ"`)
-- `01005` - "My Way" by Frank Sinatra (`youtubeId: "qQzdAsjWGPg"`)
-- `01006` - "Harana" by Parokya ni Edgar (`youtubeId: "5q-Xb3t54hI"`)
-- Include synchronized LRC strings for test tracks.
+CREATE INDEX queue_room_idx ON public.queue_items(room_code);
 
-### Task 4: Song REST API Endpoints
-Implement:
-- `GET /api/songs?search=...&lang=...`: Returns matching tracks with pagination.
-- `GET /api/songs/code/:code`: Returns song payload by exact 5-digit code or 404 if not found.
-- `GET /api/lyrics/sync?songId=...`: Returns LRC string for lyric synchronization.
+-- Enable RLS
+ALTER TABLE public.songs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.queue_items ENABLE ROW LEVEL SECURITY;
+
+-- Allow Public Read Access to Songs
+CREATE POLICY "Allow public read on songs" ON public.songs
+  FOR SELECT USING (true);
+
+-- Allow Public Read/Write on Queue Items (by room_code)
+CREATE POLICY "Allow public access to queue_items" ON public.queue_items
+  FOR ALL USING (true) WITH CHECK (true);
+```
+
+### Task 3: Seed Iconic OPM & English Hits (`scripts/seed.ts`)
+Create a seed script that populates the catalog with Filipino karaoke staples:
+- `01001` - "Anak" by Freddie Aguilar (`youtube_id: "n4RjJKxrfSg"`)
+- `01002` - "Ang Huling El Bimbo" by Eraserheads (`youtube_id: "WjK3rL4-s_4"`)
+- `01003` - "Tala" by Sarah Geronimo (`youtube_id: "kF5A11eC4y0"`)
+- `01004` - "Bakit Pa" by Jessa Zaragoza (`youtube_id: "5_zPzE4nQwQ"`)
+- `01005` - "My Way" by Frank Sinatra (`youtube_id: "qQzdAsjWGPg"`)
+- `01006` - "Harana" by Parokya ni Edgar (`youtube_id: "5q-Xb3t54hI"`)
+- Include synchronized `.lrc` strings for test tracks.
+
+### Task 4: Typed Supabase Client (`client/src/lib/supabase.ts`)
+```typescript
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../types/supabase';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+```
 
 ---
 
 ## 4. Git Version Control & GitHub Workflow
 
 ### Branch Strategy
-Create and checkout a dedicated feature branch:
 ```bash
-git checkout -b feat/day-1-foundation-songbook
+git checkout -b feat/day-1-supabase-songbook
 ```
 
 ### Atomic Commit Plan (Conventional Commits)
-Follow this commit sequence to ensure clean history:
-1. `chore: initialize monorepo workspace, tsconfig, and gitignore`
-2. `chore: setup husky pre-commit hooks, prettier, and lint-staged`
-3. `feat(server): setup knex with sqlite3 and create songs and queue migrations`
-4. `feat(server): add seed data for iconic OPM and English videoke hits`
-5. `feat(server): implement /api/songs and /api/songs/code/:code endpoints`
-6. `test(server): add integration tests for 5-digit song code resolution`
-
-### Pre-commit Verification
-Before committing:
-```bash
-npx lint-staged
-npm run typecheck
-```
+1. `chore: initialize vite react-ts workspace with tailwind and prettier`
+2. `chore: setup husky pre-commit hooks and lint-staged`
+3. `feat(supabase): add initial PostgreSQL schema migrations for songs and queue`
+4. `feat(supabase): add RLS policies and full-text search GIN index`
+5. `feat(supabase): create song seeding script with classic OPM hits and synced LRC`
+6. `feat(client): configure typed Supabase client and song search helpers`
 
 ---
 
 ## 5. Karpathy Verification & Definition of Done (DoD)
 
 Apply the **Four Checks** (`andrej-karpathy-skill`):
-1. **Assumption:** SQLite handles local single-file concurrency adequately for home party workloads.
-2. **Changed:** Backend foundation, database migrations, seed data, and REST endpoints.
+1. **Assumption:** Supabase project is active and client environment variables are loaded.
+2. **Changed:** React workspace setup, Supabase PostgreSQL schema, seed data, and typed client SDK.
 3. **Verified:**
-   - [ ] Run `npx knex migrate:latest` -> Migrations execute without error.
-   - [ ] Run `npx knex seed:run` -> 30+ tracks seeded into SQLite.
-   - [ ] Test via curl or browser:
-     ```bash
-     curl http://localhost:5000/api/songs/code/01001
+   - [ ] Run `npm run seed` -> 30+ tracks seeded into Supabase cloud PostgreSQL.
+   - [ ] In browser or node test, run:
+     ```typescript
+     const { data } = await supabase.from('songs').select('*').eq('code', '01001').single();
      ```
      Returns `"Anak"` by `"Freddie Aguilar"`.
-   - [ ] Test fuzzy search:
-     ```bash
-     curl http://localhost:5000/api/songs?search=Bimbo
+   - [ ] Test full-text search:
+     ```typescript
+     const { data } = await supabase.from('songs').select('*').textSearch('search_tokens', 'Bimbo');
      ```
      Returns `"Ang Huling El Bimbo"`.
-4. **Remaining Risk:** YouTube video IDs must be active and embeddable (we will validate embedding on Day 4).
+4. **Remaining Risk:** Anon key leaked in git (Mitigated: `.env` is strictly ignored in `.gitignore`).

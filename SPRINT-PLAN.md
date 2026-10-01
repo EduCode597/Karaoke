@@ -1,17 +1,17 @@
-# PinoyVideoke: 7-Day Sprint Plan
+# PinoyVideoke: 7-Day Sprint Plan (Serverless Cloud Edition)
 **Target Project:** Filipino-Style Videoke Web Application ("PinoyVideoke")  
 **Reference Document:** [PRD-Filipino-Videoke-Webapp.md](file:///c:/Users/PROVIDENCE/OneDrive/Desktop/Karaoke/PRD-Filipino-Videoke-Webapp.md)  
 **Timeline:** 7 Business Days / 1 Week Sprint  
-**Target Architecture:** Monorepo (Client: React 18 + Vite + Tailwind CSS | Server: Node.js + Express + Socket.io + SQLite/Knex)
+**Target Architecture:** Serverless Cloud (React 18 + Vite + Tailwind CSS | Supabase PostgreSQL & Realtime Broadcast | Vercel Deployment)
 
 ---
 
 ## Sprint Overview & Milestone Trajectory
 
 ```
-[Day 1] Data & Songbook Engine ────► [Day 2] Dual-Screen Room Pairing
-                                              │
-[Day 4] TV Player & Lyrics Sync ◄─── [Day 3] Mobile Remote & Queue UI
+[Day 1] Supabase DB & Song Catalog ────► [Day 2] Realtime Room Channels & QR
+                                                    │
+[Day 4] TV Player & Lyrics Sync ◄───────── [Day 3] Mobile Keypad & Queue Sync
          │
          ▼
 [Day 5] Web Audio Pitch & Scoring Engine
@@ -20,107 +20,103 @@
 [Day 6] Nostalgic Neon UI, Key Controls & Soundboard
          │
          ▼
-[Day 7] Multi-Device Hardening, Latency Tuning & Party Release 🚀
+[Day 7] Stress Testing, Vercel 1-Click Cloud Release 🚀
 ```
 
 | Day | Focus Area | Key Deliverable | Deep-Dive Learning Guide | Success Criteria |
 | :--- | :--- | :--- | :--- | :--- |
-| **Day 1** | Scaffolding, SQLite DB & Songbook Indexer | Monorepo structure, DB migrations, seed data, REST API | [day-01.md](file:///c:/Users/PROVIDENCE/OneDrive/Desktop/Karaoke/sprint/day-01.md) | Can search & fetch 5-digit songs via REST API |
-| **Day 2** | Dual-Screen Socket.io Architecture | Room orchestration, pairing protocol, QR code generation | [day-02.md](file:///c:/Users/PROVIDENCE/OneDrive/Desktop/Karaoke/sprint/day-02.md) | TV view displays QR; mobile phone scans & establishes paired session |
-| **Day 3** | Mobile Remote Control & Keypad UI | 3x4 numeric keypad, 5-digit LED display, Queue manager | [day-03.md](file:///c:/Users/PROVIDENCE/OneDrive/Desktop/Karaoke/sprint/day-03.md) | Guests can type 5-digit code and queue songs with singer names |
+| **Day 1** | Supabase DB & Songbook Catalog | Supabase Project, PostgreSQL schema, RLS, seed script, TS types | [day-01.md](file:///c:/Users/PROVIDENCE/OneDrive/Desktop/Karaoke/sprint/day-01.md) | Can query & fuzzy-search songs via `@supabase/supabase-js` |
+| **Day 2** | Supabase Realtime & Room Handshake | Realtime Broadcast channels, Presence tracking, QR code pairing | [day-02.md](file:///c:/Users/PROVIDENCE/OneDrive/Desktop/Karaoke/sprint/day-02.md) | TV renders QR; mobile phone scans & establishes paired Realtime channel |
+| **Day 3** | Mobile Remote Control & Keypad UI | 3x4 numeric keypad, 5-digit LED display, Realtime Queue sync | [day-03.md](file:///c:/Users/PROVIDENCE/OneDrive/Desktop/Karaoke/sprint/day-03.md) | Guests type 5-digit code and queue songs; broadcasts instantly to TV |
 | **Day 4** | TV Host Player & LRC Lyric Engine | YouTube IFrame Player API + `react-lrc` synchronization | [day-04.md](file:///c:/Users/PROVIDENCE/OneDrive/Desktop/Karaoke/sprint/day-04.md) | YouTube video plays with neon-highlighted, auto-scrolling lyrics |
 | **Day 5** | Web Audio Pitch Detection & Scoring | Mic stream capture, YIN pitch detection, score screen | [day-05.md](file:///c:/Users/PROVIDENCE/OneDrive/Desktop/Karaoke/sprint/day-05.md) | Mic detects singing pitch; generates authentic 100-pt videoke score & fanfare |
 | **Day 6** | Authentic Videoke Polish & Audio Controls | Neon theme, pitch shift (key transpose), party soundboard | [day-06.md](file:///c:/Users/PROVIDENCE/OneDrive/Desktop/Karaoke/sprint/day-06.md) | Megapro/Platinum dark neon vibe, cheer/jeer sound effects, pitch shift |
-| **Day 7** | Stress Testing, Edge Cases & Deployment | Latency profiling, multi-device stress test, Docker/startup script | [day-07.md](file:///c:/Users/PROVIDENCE/OneDrive/Desktop/Karaoke/sprint/day-07.md) | Smooth multi-user party session without desync; single-command launch |
+| **Day 7** | Stress Testing, Cloud Release & Docs | Multi-device stress test, Vercel 1-click cloud launch, GitHub tag | [day-07.md](file:///c:/Users/PROVIDENCE/OneDrive/Desktop/Karaoke/sprint/day-07.md) | 100% free cloud deployment on Vercel + Supabase with zero server lag |
 
 ---
 
 ## Detailed Daily Sprint Breakdown
 
-### Day 1: Foundation, Data Layer & Songbook Engine
-**Objective:** Establish the development environment, configure the database, and build the song indexing/search service.
+### Day 1: Supabase Setup, Database Schema & Songbook Ingestion
+**Objective:** Initialize the project, configure the cloud-hosted Supabase PostgreSQL database, and seed the songbook.
 
 #### Tasks:
 1. **Repository & Architecture Setup:**
-   - Initialize monorepo structure: `/server` (Node.js, Express, TypeScript) and `/client` (Vite, React 18, Tailwind CSS v3).
-   - Configure shared TypeScript types package or shared schema definitions.
-   - Setup ESLint, Prettier, and environment variable configs (`.env.example`).
-2. **Database Schema & Migrations:**
-   - Setup SQLite3 with Knex query builder.
-   - Create migrations for:
-     - `songs`: `id`, `code` (5-digit unique index), `title`, `artist`, `language`, `youtube_id`, `lrc_content`, `key_offset`, `duration`.
-     - `rooms`: `room_code` (unique), `host_socket_id`, `status`, `created_at`.
-     - `queue_items`: `id` (UUID), `room_code`, `song_id`, `singer_name`, `position`, `status`.
-3. **Song Seeding & Ingestion Pipeline:**
-   - Build seed script with 30+ iconic Filipino Videoke hits (OPM staples like "Anak", "Ang Huling El Bimbo", "Tala", "Bakit Pa", "Harana", "My Way", "Zombie", etc.).
-   - Create JSON/CSV ingestion CLI utility for bulk song imports with YouTube video IDs and bundled LRC files.
-4. **Songbook REST API Endpoints:**
-   - Implement `GET /api/songs`: Paginated search by title, artist, and language filter (`Tagalog`, `English`).
-   - Implement `GET /api/songs/code/:code`: Instant lookup by 5-digit code.
-   - Implement `GET /api/lyrics/sync?songId=...`: Endpoint to fetch raw LRC lyrics (with fallback to LRCLIB API proxy).
+   - Initialize React 18 + Vite + Tailwind CSS application with TypeScript.
+   - Install `@supabase/supabase-js`, `lucide-react`, and dev tooling.
+   - Setup ESLint, Prettier, Husky pre-commit hooks, and `.env.example` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
+2. **Supabase Database Schema & Migrations:**
+   - Create tables in Supabase:
+     - `songs`: `id`, `code` (5-digit unique index), `title`, `artist`, `language`, `youtube_id`, `lrc_content`, `duration`, `search_tokens` (`tsvector`).
+     - `queue_items`: `id` (UUID), `room_code`, `song_id`, `singer_name`, `position`, `status`, `created_at`.
+   - Configure Row Level Security (RLS) policies allowing public read on `songs` and room-based CRUD on `queue_items`.
+   - Setup PostgreSQL full-text search index (`GIN(to_tsvector('english', title || ' ' || artist))`).
+3. **Song Seeding Pipeline:**
+   - Write a Node seed script using `@supabase/supabase-js` to populate 30+ iconic Filipino Videoke hits (OPM staples like "Anak", "Ang Huling El Bimbo", "Tala", "Bakit Pa", "Harana", "My Way", etc.).
+   - Include pre-synchronized `.lrc` strings for test tracks.
+4. **Data Access Client:**
+   - Generate TypeScript types from Supabase schema (`supabase gen types typescript`).
+   - Create typed helper functions: `searchSongs(query)`, `getSongByCode(code)`, `getLyrics(songId)`.
 
 **Definition of Done (Day 1):**
-- Database migrations run cleanly.
-- Seeding populates verified songs with 5-digit codes, valid YouTube IDs, and synced LRC strings.
-- Automated API tests verify that searching "Freddie Aguilar" or typing "01234" returns the correct track payload in <50ms.
+- Supabase project created with verified tables and RLS policies.
+- Seeding script populates 30+ songs into Supabase cloud database.
+- Typing `searchSongs("Bimbo")` or `getSongByCode("01001")` returns correct data from Supabase in <50ms.
 
 ---
 
-### Day 2: Dual-Screen Real-Time Engine & Room Handshake
-**Objective:** Implement Socket.io room orchestration to bind the TV Host View to Mobile Remote devices.
+### Day 2: Dual-Screen Supabase Realtime Engine & Room Handshake
+**Objective:** Establish zero-server real-time communication between the TV Host View and Mobile Remotes using Supabase Realtime.
 
 #### Tasks:
-1. **Socket.io Gateway Implementation:**
-   - Configure Socket.io server with room multiplexing.
-   - Implement server handlers:
-     - `room:create` (generates memorable room codes, e.g., `KANTA-77`).
-     - `room:join` (supports `role: 'host' | 'remote'`).
-     - Room disconnection and heartbeat cleanup logic.
+1. **Supabase Realtime Channel Configuration:**
+   - Initialize channel multiplexing: `supabase.channel('room:KANTA-88', { config: { broadcast: { self: false }, presence: { key: clientId } } })`.
+   - Implement presence state tracking: TV Host monitors connected guest phone count in real-time.
 2. **TV Host Handshake (`/host`):**
-   - Build room initialization hook: requests new room code on mount.
-   - Render high-contrast connection modal containing:
-     - Prominent room code display in amber LED font.
-     - Dynamic QR Code (`qrcode.react`) embedding direct join link (`https://<host>/remote?room=KANTA-77`).
-     - Connected remotes counter badge.
+   - Generate unique room code on mount (e.g., `KANTA-88`).
+   - Render high-contrast pairing header with:
+     - Glowing amber LED room code.
+     - Scalable SVG QR Code (`qrcode.react`) pointing to `https://<domain>/remote?room=KANTA-88`.
+     - Live connected remotes counter badge via Supabase Presence.
 3. **Mobile Remote Handshake (`/remote`):**
-   - Parse `room` query parameter from URL.
-   - Build manual room code entry modal fallback for users joining without QR scanning.
-   - Establish bidirectional Socket.io connection and store session in React Context / Zustand.
-4. **State Synchronization Protocol:**
-   - Implement `room:state` broadcast payload: current playing song, player state (`playing`, `paused`, `idle`), active queue array.
+   - Extract `room` query parameter from URL using React Router (`useSearchParams`).
+   - Join the matching Supabase Realtime channel and track presence.
+   - Render live connection status badge ("Connected to KANTA-88 🟢").
+4. **Realtime Event Dispatch Protocol:**
+   - Standardize broadcast schema: `player:action`, `queue:updated`, `score:announced`, `party:sfx`.
 
 **Definition of Done (Day 2):**
-- Opening `/host` on a browser generates a room code and QR code.
-- Scanning the QR code on a mobile phone opens `/remote?room=...` and establishes an active paired connection.
-- Host screen reflects connected guest count in real-time.
+- TV Host renders room code and sharp QR code.
+- Mobile phone scans QR code, joins the Supabase Realtime channel, and increments the connected counter on the TV screen.
+- Emitting a broadcast event from mobile logs on the TV Host screen instantly (<30ms).
 
 ---
 
 ### Day 3: Mobile Remote Control (Keypad, LED Display & Queue Management)
-**Objective:** Deliver the signature Megapro/Platinum remote control experience on mobile devices.
+**Objective:** Deliver the signature Megapro/Platinum remote control experience on mobile devices with live queue synchronization.
 
 #### Tasks:
 1. **Digital 5-Digit LED Display Component:**
    - Create retro digital LED readout banner (amber monospace text on obsidian panel).
-   - Display typed digits as user presses keys (e.g., `[ 0 4 5 _ _ ]`).
-   - Add inline helper text showing preview of resolved song title once 5 digits are entered.
+   - Display typed digits as user presses keys: `[ 0 4 5 _ _ ]`.
+   - Auto-query Supabase when 5 digits are entered and show instant song title/artist preview.
 2. **Physical-Style 3x4 Matrix Keypad:**
    - Implement 12-button grid: `1-9`, `Clear` (red), `0`, `Enter` (cyan).
-   - Add tactile audio/haptic feedback (`navigator.vibrate(15)` on supported mobile devices).
-   - Add "Singer Name" prompt modal or drawer upon pressing `Enter`.
-3. **Songbook Search & Category Browser Tab:**
-   - Build mobile search view with real-time debounce for users who don't know the numeric code.
-   - Filter chips: `All`, `OPM / Tagalog`, `English`, `Pop`, `Rock`, `Duets`.
+   - Add tactile audio & haptic feedback (`navigator.vibrate(15)`).
+   - On `Enter`: open "Singer Name" prompt modal -> insert into `queue_items` and broadcast `queue:updated`.
+3. **Mobile Songbook Search & Category Browser:**
+   - Search input with full-text search across Tagalog and English tracks.
+   - Filter category chips: `All`, `OPM / Tagalog`, `English`, `Pop`, `Rock`.
    - "Reserve" button to enqueue instantly with 1 tap.
 4. **Queue Management Drawer:**
-   - Display real-time list of upcoming tracks with singer name tags.
-   - Controls: "Move to Top" (priority queue) and "Delete" (remove track).
-   - Optimistic UI updates with socket event dispatch (`queue:add`, `queue:reorder`, `queue:remove`).
+   - Real-time playlist drawer displaying upcoming singers and songs.
+   - Actions: ⬆️ "Move to Top" (Priority play next) and 🗑️ "Delete".
+   - Subscribes to Supabase Postgres Changes or Realtime Broadcast for instant synchronization.
 
 **Definition of Done (Day 3):**
-- Guest can input a 5-digit number on mobile keypad and press `Enter` to queue a song.
-- Queue updates broadcast immediately and render on the host screen within 100ms.
-- Guest can search by song title on mobile, browse categories, and queue tracks seamlessly.
+- Guest can input a 5-digit number on mobile keypad and tap `Enter` to queue a song.
+- Queue update appears on the TV Host screen in real-time.
+- Guest can search by song title on mobile, browse categories, and queue tracks effortlessly.
 
 ---
 
@@ -206,10 +202,7 @@
 4. **Interactive Party Soundboard:**
    - Soundboard tab on Mobile Remote with buttons for instant crowd reactions:
      - 👏 Clapping & Cheers
-     - 📢 Airhorn / Reggae Siren
-     - 🥁 Drum Roll
-     - 🔔 "Gong" Stinger
-   - Tapping broadcasts audio trigger to the TV Host screen via WebSockets for room-wide sound playback.
+     - Tapping broadcasts audio trigger to the TV Host screen via Supabase Realtime Broadcast for room-wide sound playback.
 
 **Definition of Done (Day 6):**
 - The UI looks and feels like a legitimate Philippine commercial KTV / videoke machine.
@@ -218,30 +211,31 @@
 
 ---
 
-### Day 7: Multi-Device Stress Testing, Edge Cases & Deployment
-**Objective:** Harden the system for real-world party environments, optimize latency, and prepare one-command launch.
+### Day 7: Multi-Device Stress Testing, Edge Cases & Vercel Cloud Release
+**Objective:** Harden the system for real-world party environments, optimize latency, and deploy free to the cloud.
 
 #### Tasks:
 1. **Multi-Device Concurrency & Stress Testing:**
    - Connect 5+ mobile devices simultaneously to a single TV Host room.
-   - Test simultaneous 5-digit queue submissions, queue re-ordering, and soundboard spam.
-   - Ensure WebSocket messages maintain sub-50ms latency over local Wi-Fi.
+   - Test simultaneous 5-digit queue submissions, queue re-ordering, and soundboard spam over Supabase Realtime.
+   - Ensure Supabase Realtime messages maintain sub-50ms latency.
 2. **Robust Edge Case & Failure Recovery:**
    - Handle YouTube playback errors (e.g., blocked embedding fallback to secondary video or warning toast).
    - Handle microphone permission denied: graceful fallback to simulated party score without crashing.
-   - Handle mobile device sleep / screen lock: automatic socket reconnection and state resynchronization.
+   - Handle mobile device sleep / screen lock: automatic Supabase channel resynchronization.
 3. **Cross-Browser & Responsive Optimization:**
    - Validate TV view on 1080p and 4K displays.
    - Validate Mobile Remote on iOS Safari and Android Chrome viewport heights (`dvh` support).
-4. **Packaging & Deployment:**
-   - Create single startup command: `npm run start:party` (concurrently boots backend and builds/serves frontend).
-   - Build a `docker-compose.yml` for self-hosted home server or Raspberry Pi deployment.
+4. **Vercel Cloud Deployment:**
+   - Configure `vercel.json` for single-page application routing.
+   - Set up environment variables on Vercel: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+   - 1-click deploy to production on Vercel with automatic global CDN edge caching.
    - Write complete User Guide and setup documentation.
 
 **Definition of Done (Day 7):**
-- Flawless 30-minute end-to-end singing session conducted with multiple connected phones.
+- Flawless 30-minute end-to-end singing session conducted with multiple connected phones over public internet.
 - All acceptance criteria from the PRD validated.
-- Deployment script launches the entire system with zero manual configuration.
+- Hosted live and public on Vercel (`https://pinoyvideoke.vercel.app`) at $0/month cost.
 
 ---
 
@@ -252,7 +246,7 @@
 | **YouTube Autoplay Restrictions** | High | High | TV Host UI will include a prominent "Start Party / Click to Enable Audio" initial button to unlock the browser `AudioContext` and YouTube iframe autoplay policy. |
 | **Video Embedding Restrictions** | Med | Med | Seed list will use vetted karaoke backing tracks with embedding enabled. A fallback search or alternative YouTube ID field will be supported in the DB schema. |
 | **Web Audio Pitch Drift / Noise** | Med | High | Configure `getUserMedia` with `echoCancellation: false`, `noiseSuppression: false` to avoid clipping vocal frequencies; use high-confidence thresholding in the YIN algorithm. |
-| **Mobile Wi-Fi Sleep Disconnects** | Med | Med | Socket.io automatic reconnection with room re-join handshake stored in client session storage. |
+| **Mobile Wi-Fi Sleep Disconnects** | Med | Med | Supabase client automatic reconnection with room re-join handshake stored in client session storage. |
 | **LRC Lyric Timing Mismatch** | Med | Med | Provide a fine-tuning sync slider (`±0.5s` offset) on the host control panel to easily calibrate lyric timing on the fly. |
 
 ---
@@ -263,10 +257,10 @@ If executing as a multi-person team or solo developer, allocate effort according
 
 | Area | Primary Responsibility | Daily Allocation |
 | :--- | :--- | :--- |
-| **Backend & Real-Time Engine** | SQLite DB, Express REST APIs, Socket.io gateway, queue sync | ~2.5 hrs/day |
+| **Supabase Data & Realtime Engine** | PostgreSQL schema, RLS policies, Realtime Broadcast, Presence | ~2.0 hrs/day |
 | **Frontend TV View & Audio** | YouTube IFrame API, `react-lrc`, Web Audio API, YIN pitch detection | ~3.0 hrs/day |
 | **Frontend Mobile Remote & UI** | 3x4 Matrix Keypad, 5-digit display, songbook search, Tailwind design | ~2.5 hrs/day |
-| **QA, Assets & Testing** | Song seeding, audio SFX curation, multi-device testing, Docker | ~1.5 hrs/day |
+| **QA, Assets & Cloud Deploy** | Song seeding, audio SFX curation, multi-device testing, Vercel | ~1.5 hrs/day |
 
 ---
-*Created from PRD-Filipino-Videoke-Webapp.md v1.0.0*
+*Created from PRD-Filipino-Videoke-Webapp.md v1.1.0 (Serverless Cloud Edition)*

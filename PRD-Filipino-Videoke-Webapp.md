@@ -1,23 +1,24 @@
 # Product Requirement Document (PRD)
 ## Filipino-Style Videoke Web Application ("PinoyVideoke")
 
-**Document Version:** 1.0.0  
-**Status:** Draft / Technical Blueprint  
-**Target Stack:** React, Node.js (Express), Socket.io, Tailwind CSS, Web Audio API, YouTube IFrame API, LRCLIB API  
+**Document Version:** 1.1.0 (Serverless Cloud Edition)  
+**Status:** Approved / Technical Blueprint  
+**Target Stack:** React 18, Supabase (PostgreSQL & Realtime Broadcast), Tailwind CSS, Web Audio API, YouTube IFrame API, LRCLIB API  
 
 ---
 
 ## 1. Executive Summary & Vision
 
 ### 1.1 Vision
-The goal of **PinoyVideoke** is to replicate the iconic experience of Filipino Videoke machines (such as Megapro, Platinum, and TJ Media) in a modern, lightweight web application. The application enables users to host home karaoke sessions using a **dual-screen architecture**: a primary display (TV / Host Screen) renders video playback and synchronized lyrics, while guest smartphones serve as wireless 5-digit keypads and remote controls.
+The goal of **PinoyVideoke** is to replicate the iconic experience of Filipino Videoke machines (such as Megapro, Platinum, and TJ Media) in a modern, lightweight web application hosted 100% free on the cloud. The application enables users to host home karaoke sessions using a **dual-screen architecture**: a primary display (TV / Host Screen) renders video playback and synchronized lyrics, while guest smartphones serve as wireless 5-digit keypads and remote controls.
 
 ### 1.2 Core Pillars
 1. **5-Digit Songbook Navigation**: Traditional numeric code input alongside modern search by artist and title.
-2. **Dual-Screen Real-Time Synchronization**: Room-based WebSockets connecting the main TV view to mobile remote controls without requiring native mobile app downloads.
+2. **Dual-Screen Real-Time Synchronization**: Supabase Realtime Broadcast & Presence channels connecting the main TV view to mobile remote controls without requiring native mobile app downloads.
 3. **Synchronized LRC Lyrics & YouTube Integration**: Seamless playback powered by the YouTube IFrame API and line-by-line lyric animation.
 4. **Authentic Videoke Scoring**: Real-time microphone audio processing using the Web Audio API and pitch detection algorithms to compute singing accuracy scores.
 5. **Nostalgic Neon Aesthetic**: A high-contrast dark theme built with Tailwind CSS, featured glowing text, digital LED displays, and party UI overlays.
+6. **Zero-Cost Cloud Deployment**: Pure serverless hosting on Vercel + Supabase Free Tier (zero server maintenance, zero cold-start spin-down).
 
 ---
 
@@ -25,44 +26,47 @@ The goal of **PinoyVideoke** is to replicate the iconic experience of Filipino V
 
 ```
 +-----------------------------------------------------------------------+
-|                             CLIENT LAYER                              |
+|                       CLIENT LAYER (Vercel / React 18)                |
 |                                                                       |
 |  +-------------------------------+   +-----------------------------+  |
-|  |       TV HOST VIEW (React)    |   |    MOBILE REMOTE VIEW (React)|  |
+|  |       TV HOST VIEW (/host)    |   |    MOBILE REMOTE (/remote)  |  |
 |  | - YouTube IFrame Player       |   | - 5-Digit Numeric Keypad    |  |
 |  | - react-lrc Lyric Renderer    |   | - Digital LED Display       |  |
 |  | - Web Audio Pitch Detector    |   | - Song Search & Filter      |  |
-|  | - Score Overlay & Cheer SFX   |   | - Queue Manager & Re-order  |  |
+|  | - Score Overlay & Fanfare SFX |   | - Queue Manager & Re-order  |  |
 |  +---------------+---------------+   +--------------+--------------+  |
 |                  |                                  |                 |
 +------------------|----------------------------------|-----------------+
-                   | WebSockets / HTTP                | WebSockets / HTTP
+                   | Supabase Realtime / REST         | Supabase Realtime / REST
                    v                                  v
 +-----------------------------------------------------------------------+
-|                             SERVER LAYER                              |
+|                    SUPABASE CLOUD PLATFORM (BaaS)                     |
 |                                                                       |
-|   +----------------------------------------------------------------+  |
-|   |                   Node.js + Express Server                     |  |
-|   |  - Socket.io Event Gateway (Room Multiplexing & Queue Sync)    |  |
-|   |  - REST API Routes (/api/songs, /api/lyrics, /api/queue)       |  |
-|   |  - LRCLIB API Proxy & YouTube Metadata Parser                  |  |
-|   +-------------------------------+--------------------------------+  |
-|                                   |                                   |
-|                                   v                                   |
-|   +----------------------------------------------------------------+  |
-|   |                   Database (SQLite / PostgreSQL)               |  |
-|   |  - Songs Table (5-digit code, title, artist, youtubeId, lrcId) |  |
-|   |  - Rooms & Active Queue Sessions                               |  |
-|   +----------------------------------------------------------------+  |
+|  +-----------------------------------------------------------------+  |
+|  |                 Supabase Realtime Engine                        |  |
+|  |  - WebSocket Broadcast Channels (room:KANTA-88)                 |  |
+|  |  - Presence Tracking (Connected remotes counter)                |  |
+|  |  - Postgres Change Data Capture (CDC) for Queue Updates         |  |
+|  +-------------------------------+---------------------------------+  |
+|                                  |                                    |
+|                                  v                                    |
+|  +-----------------------------------------------------------------+  |
+|  |                 Managed PostgreSQL Database                     |  |
+|  |  - songs (code, title, artist, youtube_id, lrc_content)         |  |
+|  |  - queue_items (id, room_code, song_id, singer_name, position)  |  |
+|  |  - Full-Text Search Indices (PostgreSQL to_tsvector)            |  |
+|  |  - Row Level Security (RLS) Policies                            |  |
+|  +-----------------------------------------------------------------+  |
 +-----------------------------------------------------------------------+
 ```
 
 ### 2.1 Technology Matrix
-- **Frontend**: React 18, React Router v6, Tailwind CSS v3, `react-lrc`
-- **Backend**: Node.js v20+, Express.js v4, Socket.io v4
-- **Database**: SQLite3 (with `knex` or `prisma` ORM) for lightweight local hosting
-- **Audio & Media**: Web Audio API (`AudioContext`, `AnalyserNode`), `pitchfinder` library (YIN pitch detection algorithm), YouTube IFrame Player API
-- **Lyrics Service**: LRCLIB API client (`lrclib-api`) for automated fetching of synchronized lyrics
+- **Frontend Framework**: React 18, React Router v6, Tailwind CSS v3, `react-lrc`, `qrcode.react`
+- **Backend-as-a-Service**: Supabase Cloud (PostgreSQL + Realtime WebSockets)
+- **Client SDK**: `@supabase/supabase-js` (Database queries + Realtime broadcast)
+- **Audio & Media**: Web Audio API (`AudioContext`, `AnalyserNode`), `pitchfinder` (YIN algorithm), YouTube IFrame Player API
+- **Lyrics Service**: Bundled synced `.lrc` and LRCLIB API client
+- **Deployment**: Vercel (Frontend Global CDN) + Supabase (Cloud Database & Realtime)
 
 ---
 
@@ -92,32 +96,32 @@ interface Song {
 
 ---
 
-### 3.2 Module 2: Dual-Screen Socket.io Real-Time Engine
-The system uses Socket.io room multiplexing to pair mobile remotes with a specific TV screen room.
+### 3.2 Module 2: Dual-Screen Supabase Realtime Engine
+The system uses **Supabase Realtime Channels** (Broadcast & Presence) to pair mobile remotes with a specific TV screen room without needing a dedicated custom WebSocket server.
 
 #### Room Connection Flow:
-1. The **TV Host View** initializes and requests a new room session (e.g., Room Code: `Kanta-88`).
-2. The TV screen renders a prominent **QR Code** containing the mobile URL (`https://app.domain/remote?room=Kanta-88`).
+1. The **TV Host View** initializes and subscribes to a unique Supabase Realtime Channel: `supabase.channel('room:KANTA-88')`.
+2. The TV screen renders a prominent **SVG QR Code** containing the mobile URL (`https://app.domain/remote?room=KANTA-88`).
 3. Guests scan the QR code to open the **Mobile Remote Control** interface.
-4. All queue updates, pause/play events, and skip requests broadcast instantly to all connected devices in the room.
+4. Mobile devices join the same Realtime channel and track their connection via **Supabase Presence**.
+5. All queue additions, pause/play events, and skip requests broadcast instantly using `channel.send({ type: 'broadcast', event: '...', payload })`.
 
 ```typescript
-// Socket.io Client-Server Event Protocol
-interface ServerToClientEvents {
-  'room:state': (data: RoomState) => void;
-  'queue:updated': (queue: QueueItem[]) => void;
-  'player:action': (action: 'play' | 'pause' | 'skip' | 'replay' | 'transpose', payload?: any) => void;
-  'score:announced': (result: ScoreResult) => void;
+// Supabase Realtime Channel Event Protocol
+interface RealtimeBroadcastEvents {
+  'player:action': { action: 'play' | 'pause' | 'skip' | 'replay' | 'transpose'; payload?: any };
+  'queue:updated': { queue: QueueItem[] };
+  'score:announced': { result: ScoreResult };
+  'party:sfx': { sfxType: 'airhorn' | 'cheer' | 'gong' | 'drumroll' };
 }
 
-interface ClientToServerEvents {
-  'room:join': (roomCode: string, deviceType: 'host' | 'remote') => void;
-  'queue:add': (songCode: string, singerName?: string) => void;
-  'queue:remove': (queueId: string) => void;
-  'queue:reorder': (queueIds: string[]) => void;
-  'player:control': (command: string, value?: any) => void;
-  'mic:pitch_sample': (pitchData: { pitch: number; clarity: number }) => void;
-}
+// Example Client Broadcast Dispatch
+const channel = supabase.channel(`room:${roomCode}`);
+channel.send({
+  type: 'broadcast',
+  event: 'player:action',
+  payload: { action: 'skip' }
+});
 ```
 
 ---
@@ -255,17 +259,17 @@ CREATE TABLE queue_items (
 
 ## 6. Implementation Roadmap
 
-### Phase 1: Core Backend & Database Setup
-- [ ] Initialize Express.js application with TypeScript and SQLite (`knex`).
-- [ ] Implement database migrations for `songs` and `queue_items`.
-- [ ] Seed database with initial OPM and English karaoke song entries.
-- [ ] Build REST API routes for song lookup and lyrics fetching.
+### Phase 1: Supabase Setup & Songbook Catalog
+- [ ] Initialize Supabase project and configure PostgreSQL tables (`songs` and `queue_items`).
+- [ ] Set up Row Level Security (RLS) policies and PostgreSQL full-text search indexes.
+- [ ] Seed database with initial OPM and English karaoke song entries with YouTube IDs and synced LRC strings.
+- [ ] Generate TypeScript database types with Supabase CLI (`supabase gen types typescript`).
 
-### Phase 2: Socket.io Infrastructure & Dual View Link
-- [ ] Configure Socket.io server with room creation and room joining handlers.
-- [ ] Build React TV Host View with room creation and QR code generator (`qrcode.react`).
-- [ ] Build Mobile Remote Keypad View with numeric button handlers and Socket emit calls.
-- [ ] Test real-time queue synchronization between mobile keypad and TV screen.
+### Phase 2: Supabase Realtime Engine & Dual-Screen Link
+- [ ] Configure Supabase Realtime Broadcast & Presence channels for room pairing (`room:KANTA-88`).
+- [ ] Build React TV Host View with room initialization and SVG QR code generator (`qrcode.react`).
+- [ ] Build Mobile Remote Keypad View with numeric button handlers and Supabase broadcast dispatchers.
+- [ ] Test real-time queue synchronization between mobile keypad and TV screen via Supabase Realtime.
 
 ### Phase 3: Player Engine & Lyric Synchronization
 - [ ] Embed YouTube IFrame Player in TV Host View.
@@ -277,10 +281,10 @@ CREATE TABLE queue_items (
 - [ ] Hook `pitchfinder` YIN algorithm to process `AnalyserNode` float buffers.
 - [ ] Develop 100-point Videoke scoring algorithm and celebratory sound effects overlay.
 
-### Phase 5: Tailwind Styling & Final Testing
+### Phase 5: Tailwind Styling & Free Cloud Deployment
 - [ ] Apply dark neon Videoke styling across TV and Mobile Remote components.
 - [ ] Verify low-latency real-time performance across multiple connected mobile devices.
-- [ ] Package app with Docker container or local startup script for home party deployment.
+- [ ] Deploy frontend to Vercel (connected to Supabase Cloud) for 100% free, high-performance cloud hosting.
 
 ---
 
