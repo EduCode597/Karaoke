@@ -1,59 +1,54 @@
-# Day 7: Multi-Device Stress Testing, Edge Cases, Hardening & Deployment
-**Sprint:** 7-Day PinoyVideoke Implementation  
-**Phase:** Phase 5 (Final) – Hardening, Concurrency Testing & Party Release  
-**Focus:** Concurrency Testing, Edge Case Fallbacks, Single-Command Deployment & GitHub Release  
+# Day 7: Multi-Device Stress Testing, Cloud Release & GitHub Tag
+**Sprint:** 7-Day PinoyVideoke Implementation (Serverless Cloud Edition)  
+**Phase:** Phase 5 (Final) – Hardening, Free Cloud Deployment & Release  
+**Focus:** Concurrency Testing, Edge Case Fallbacks, Vercel 1-Click Deployment & GitHub Tagging  
 **Referenced Skills:** `backend-architect`, `diagnosing-bugs`, `code-reviewer`, `security-auditor`, `permissioned-github`, `andrej-karpathy-skill`
 
 ---
 
 ## 1. Day 7 Objectives & Architectural Goal
-The final day tests, hardens, and packages PinoyVideoke for a flawless live party release:
-1. Conduct **multi-client concurrency and stress testing** (simulating 10+ mobile remotes queueing tracks simultaneously).
+The final day tests, hardens, and launches PinoyVideoke live on the cloud at **100% zero hosting cost**:
+1. Conduct **multi-client concurrency and stress testing** (simulating 10+ mobile remotes queueing tracks simultaneously over Supabase Realtime).
 2. Harden **edge-case failure recovery** (mobile screen lock / reconnection, mic permission denial, unplayable YouTube tracks).
-3. Profile and eliminate **memory leaks and event listener accumulation** in Node.js and React.
-4. Package the application for **single-command execution** (`npm run start:party` and Docker container).
+3. Profile and eliminate **memory leaks and channel subscription accumulation** in React.
+4. Deploy the application to **Vercel** with global edge CDN caching and connect to Supabase production.
 5. Execute the final GitHub Pull Request review, merge to `main`, and tag release **v1.0.0**.
 
 ---
 
-## 2. In-Depth Learning Module: Hardening, Diagnostics & DevOps
+## 2. In-Depth Learning Module: Serverless Cloud Deployment & Diagnostics
 
-### 2.1 Diagnosing Memory Leaks & Event Listener Accumulation (Skill: `diagnosing-bugs`)
-In long-running videoke sessions (e.g. 6-hour birthday parties), memory leaks can slowly crash the host browser or Node process:
-- **Node.js MaxListenersExceededWarning:**
-  If your socket handlers attach listeners to an EventEmitter without detaching them on socket disconnection:
-  ```typescript
-  // ❌ ANTI-PATTERN: Leaks memory every time a client reconnects!
-  socket.on('disconnect', () => {
-    // Forgot to clean up room listeners
-  });
-  ```
-  Check active listeners and memory footprint:
-  ```bash
-  node --inspect server/dist/index.js
-  ```
-- **React Animation Frame & Audio Buffer Leaks:**
-  Ensure that when the TV view switches between videos, previous `requestAnimationFrame` loops and `AudioContext` buffers are explicitly cancelled and closed.
+### 2.1 Single-Page Application (SPA) Routing on Vercel
+In React Router, routes like `/host` and `/remote` are handled client-side by JavaScript.
+If a guest refreshes their browser on `https://pinoyvideoke.vercel.app/remote?room=KANTA-88`, Vercel's server will look for a static file named `/remote/index.html` and return a **404 Not Found** error unless configured with an SPA rewrite.
+
+**The `vercel.json` SPA Configuration:**
+```json
+{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+```
+This tells Vercel to route all incoming HTTP requests to `index.html`, allowing React Router to resolve `/host` and `/remote` seamlessly.
 
 ### 2.2 Network Resilience & Mobile Screen Sleep Recovery
-Mobile phones aggressively put Wi-Fi and WebSockets to sleep when the screen turns off.
+Mobile phones aggressively pause JavaScript and WebSockets when the screen locks.
 When the guest unlocks their phone 20 minutes later:
-1. The WebSocket connection may be in a zombie state.
-2. The UI queue list is out of date.
-- **The Reconnection State Recovery Protocol:**
-  ```typescript
-  // client/src/services/socket.ts
-  socket.io.on('reconnect', () => {
-    console.log('Reconnected to server! Resynchronizing room state...');
-    const savedRoom = sessionStorage.getItem('pinoyvideoke_room');
-    if (savedRoom) {
-      socket.emit('room:join', { roomCode: savedRoom, deviceType: 'remote' });
-    }
-  });
-  ```
+1. Supabase client detects the reconnection.
+2. The UI queue list is refreshed:
+```typescript
+supabase.realtime.on('connect', () => {
+  console.log('Reconnected to Supabase Realtime! Syncing state...');
+  refreshQueue();
+});
+```
 
 ### 2.3 Graceful Degradation: Microphone Permission Fallback
-If the TV Host machine has no microphone plugged in or the user denies permission:
+If the TV Host machine has no microphone or the user denies permission:
 - **Never crash the application!**
 - Catch the `NotAllowedError`:
   ```typescript
@@ -67,66 +62,36 @@ If the TV Host machine has no microphone plugged in or the user denies permissio
   }
   ```
 
-### 2.4 Production Packaging: Single Server Serving Client & API
-In development, Vite runs on port `5173` and Express runs on `5000`.
-For a streamlined home party setup, we build the React app into static files (`client/dist`) and configure Express to serve both the API, WebSockets, and the frontend on a single port (`5000`):
-```typescript
-// server/src/index.ts
-if (process.env.NODE_ENV === 'production') {
-  const clientDist = path.resolve(__dirname, '../../client/dist');
-  app.use(express.static(clientDist));
-  app.get('*', (req, res) => {
-    res.sendFile(path.resolve(clientDist, 'index.html'));
-  });
-}
-```
-
 ---
 
 ## 3. Step-by-Step Implementation Tasks
 
-### Task 1: Multi-Device Concurrency & Stress Test Script (`server/scripts/stress-test.ts`)
-1. Create a Node script using `socket.io-client` that spawns 10 simulated mobile clients.
-2. Have each client:
-   - Connect to room `KANTA-88`.
-   - Submit random 5-digit song reservations simultaneously.
-   - Fire random soundboard airhorn triggers.
-3. Verify that the server maintains $<50\text{ms}$ event broadcast response without dropped packets.
+### Task 1: Multi-Device Realtime Stress Test
+1. Connect 5+ mobile devices simultaneously to a single TV Host room.
+2. Simultaneously submit 5-digit song reservations, search queries, and soundboard airhorns.
+3. Verify that Supabase Realtime maintains $<50\text{ms}$ broadcast response with zero dropped packets.
 
 ### Task 2: Production Build & Asset Optimization
 1. Run `npm run build` in `/client` (Vite creates minified, hashed bundles).
-2. Configure Express static file serving for production mode.
-3. Validate that gzip or Brotli compression is enabled for lightning-fast mobile loading.
+2. Verify total bundle size and ensure code splitting for external heavy libraries (`react-lrc`, `qrcode.react`).
+3. Verify that all asset paths use relative or root references.
 
-### Task 3: Single-Command Party Launcher (`package.json`)
-Add convenient root scripts:
-```json
-{
-  "scripts": {
-    "start:party": "concurrently \"npm run start --workspace=server\" \"npm run preview --workspace=client\"",
-    "build": "npm run build --workspaces",
-    "typecheck": "npm run typecheck --workspaces",
-    "test": "npm run test --workspaces"
-  }
-}
-```
+### Task 3: Vercel Cloud Deployment Setup
+1. Create `vercel.json` in the root folder with SPA rewrites.
+2. Deploy via Vercel CLI or GitHub Integration:
+   ```bash
+   npx vercel
+   ```
+3. Set Production Environment Variables in Vercel Dashboard:
+   - `VITE_SUPABASE_URL` = `https://your-project.supabase.co`
+   - `VITE_SUPABASE_ANON_KEY` = `your-anon-key`
+4. Confirm production build succeeds: `https://pinoyvideoke.vercel.app`.
 
-### Task 4: Docker Containerization (`docker-compose.yml`)
-Create a zero-dependency Docker setup for running PinoyVideoke on any home server or Raspberry Pi:
-```yaml
-version: '3.8'
-services:
-  pinoyvideoke:
-    build: .
-    ports:
-      - "5000:5000"
-    environment:
-      - NODE_ENV=production
-      - PORT=5000
-    volumes:
-      - ./data:/app/server/data
-    restart: unless-stopped
-```
+### Task 4: Complete Documentation & User Guide (`README.md`)
+1. Add quick start guide for party hosts:
+   - How to open TV Host view (`/host`).
+   - How guests scan QR to join on mobile (`/remote`).
+   - Sourcing song codes and using the songbook.
 
 ---
 
@@ -135,25 +100,25 @@ services:
 ### Final Sprint Branch & Pull Request
 1. Commit all final hardening improvements:
    ```bash
-   git checkout -b feat/day-7-hardening-and-deployment
-   git commit -m "chore: configure production build and single-command party launcher"
-   git commit -m "feat(server): implement static client serving and graceful mic fallback"
-   git commit -m "test: add multi-device socket stress test script"
+   git checkout -b feat/day-7-cloud-release
+   git commit -m "chore: add vercel.json SPA rewrites and production build configs"
+   git commit -m "feat(client): implement graceful mic permission fallback and sleep recovery"
+   git commit -m "docs: update README with Vercel deployment guide and party host manual"
    ```
 2. Push branch to GitHub:
    ```bash
-   git push origin feat/day-7-hardening-and-deployment
+   git push origin feat/day-7-cloud-release
    ```
 3. Open and merge Pull Request to `main`:
    ```bash
-   gh pr create --title "Release v1.0.0: PinoyVideoke Complete Implementation" --body "Comprehensive 7-day sprint deliverables complete."
+   gh pr create --title "Release v1.0.0: PinoyVideoke Serverless Cloud Edition" --body "Comprehensive 7-day sprint deliverables complete with Supabase and Vercel."
    gh pr merge --squash
    ```
 4. Create Release Tag:
    ```bash
    git checkout main
    git pull origin main
-   git tag -a v1.0.0 -m "PinoyVideoke v1.0.0 Official Release"
+   git tag -a v1.0.0 -m "PinoyVideoke v1.0.0 Official Release (Serverless Cloud Edition)"
    git push origin v1.0.0
    ```
 
@@ -162,12 +127,12 @@ services:
 ## 5. Karpathy Verification & Definition of Done (DoD)
 
 Apply the **Four Checks** (`andrej-karpathy-skill`):
-1. **Assumption:** The entire application can be launched with a single terminal command on a local network.
-2. **Changed:** Stress test scripts, production bundle pipeline, static file serving, and Docker config.
+1. **Assumption:** The entire application runs publicly on Vercel + Supabase with zero server subscription costs.
+2. **Changed:** Vercel deployment configuration, graceful degradation, and production documentation.
 3. **Verified:**
-   - [ ] Run `npm run typecheck` across all workspaces -> 0 errors.
-   - [ ] Run `npm run test` -> All unit and integration tests pass.
-   - [ ] Execute `server/scripts/stress-test.ts` with 10 simulated clients -> Server handles 100+ events smoothly.
-   - [ ] Disconnect and reconnect Wi-Fi on a connected mobile phone -> Phone automatically resyncs room queue.
-   - [ ] Run `npm run start:party` -> Open TV Host on `http://localhost:5000/host` and connect mobile phone -> Conduct a full 3-song singing session with scoring and sound effects.
-4. **Outcome Achieved:** A complete, resilient, nostalgic Filipino Videoke web application ready for live party hosting! 🎤🇵🇭🎉
+   - [ ] Run `npm run build` -> Builds cleanly with 0 TypeScript or lint errors.
+   - [ ] Visit live Vercel production URL -> Opens TV Host screen.
+   - [ ] Scan QR code from smartphone across the room -> Mobile remote opens and connects to the room over the internet.
+   - [ ] Queue a song from smartphone -> Plays on TV Host screen with synchronized lyrics and sound effects.
+   - [ ] Complete full singing performance -> Score reveal screen triggers with fanfare audio.
+4. **Outcome Achieved:** A world-class, 100% free cloud-hosted Filipino Videoke web application ready for home parties anywhere in the world! 🎤🇵🇭🎉
