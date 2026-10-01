@@ -120,7 +120,6 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
           videoId,
           width: '100%',
           height: '100%',
-          host: 'https://www.youtube-nocookie.com',
           playerVars: {
             autoplay: 1,
             controls: 0,
@@ -137,10 +136,28 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
               } catch {
                 setNeedsUserGesture(true);
               }
+
+              // Autoplay check: if the browser blocks unmuted autoplay, prompt user to start
+              setTimeout(() => {
+                if (playerRef.current && typeof playerRef.current.getPlayerState === 'function') {
+                  try {
+                    const st = playerRef.current.getPlayerState();
+                    if (st !== 1 && st !== 3) {
+                      setNeedsUserGesture(true);
+                    }
+                  } catch {
+                    // Ignore state errors
+                  }
+                }
+              }, 1800);
             },
             onStateChange: (event) => {
               setPlayerState(event.data);
               if (onStateChange) onStateChange(event.data);
+
+              if (event.data === window.YT.PlayerState.PLAYING) {
+                setNeedsUserGesture(false);
+              }
 
               if (event.data === window.YT.PlayerState.ENDED) {
                 onEnded();
@@ -180,8 +197,30 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
       playerRef.current?.playVideo();
     };
 
+    const handleStageClick = () => {
+      if (needsUserGesture) {
+        handleManualPlay();
+        return;
+      }
+      if (playerRef.current && typeof playerRef.current.getPlayerState === 'function') {
+        try {
+          const st = playerRef.current.getPlayerState();
+          if (st === 1) {
+            playerRef.current.pauseVideo();
+          } else {
+            playerRef.current.playVideo();
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+
     return (
-      <div className="relative aspect-video w-full bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
+      <div
+        onClick={handleStageClick}
+        className="relative aspect-video w-full bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800 cursor-pointer select-none"
+      >
         {/* IFrame Host Container */}
         <div
           ref={containerRef}
@@ -205,7 +244,13 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
 
         {/* Autoplay / User Gesture Prompt Overlay */}
         {needsUserGesture && (
-          <div className="absolute inset-0 z-30 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 p-6 text-center animate-fade-in">
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              handleManualPlay();
+            }}
+            className="absolute inset-0 z-30 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 p-6 text-center animate-fade-in"
+          >
             <div className="p-4 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-400 shadow-neon-cyan animate-pulse">
               <Volume2 className="w-8 h-8" />
             </div>
@@ -214,8 +259,11 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
               Modern browsers require a click on the screen before playing audio automatically.
             </p>
             <button
-              onClick={handleManualPlay}
-              className="py-3 px-6 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-black font-black uppercase text-sm tracking-wider shadow-neon-cyan active:scale-95 transition-transform flex items-center gap-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleManualPlay();
+              }}
+              className="py-3 px-6 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-black font-black uppercase text-sm tracking-wider shadow-neon-cyan active:scale-95 transition-transform flex items-center gap-2 cursor-pointer"
             >
               <Play className="w-4 h-4 fill-black" />
               <span>Start Audio Playback</span>
@@ -225,13 +273,19 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
 
         {/* Embed Restriction Error Fallback */}
         {embedError && (
-          <div className="absolute inset-0 z-30 bg-slate-950/90 flex flex-col items-center justify-center gap-3 p-6 text-center">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="absolute inset-0 z-30 bg-slate-950/90 flex flex-col items-center justify-center gap-3 p-6 text-center"
+          >
             <AlertCircle className="w-10 h-10 text-rose-400" />
             <h3 className="text-lg font-bold text-white">Playback Error</h3>
             <p className="text-xs text-rose-300 font-mono max-w-md">{embedError}</p>
             <button
-              onClick={onEnded}
-              className="mt-2 py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-mono text-slate-200 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEnded();
+              }}
+              className="mt-2 py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-mono text-slate-200 transition-colors cursor-pointer"
             >
               Skip to Next Song
             </button>
