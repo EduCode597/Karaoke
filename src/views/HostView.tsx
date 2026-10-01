@@ -1,16 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import {
-  Tv,
   Smartphone,
-  Copy,
-  Check,
-  RefreshCw,
-  ExternalLink,
-  Users,
   Activity,
-  ArrowLeft,
   Volume2,
   Music,
   Radio,
@@ -35,8 +27,10 @@ import YouTubePlayer, { YouTubePlayerHandle } from '../components/player/YouTube
 import LyricsOverlay from '../components/player/LyricsOverlay';
 import PitchMonitor from '../components/player/PitchMonitor';
 import ScoreModal from '../components/player/ScoreModal';
+import TickerBanner from '../components/player/TickerBanner';
 import { useMicrophonePitch } from '../hooks/useMicrophonePitch';
 import { calculateVideokeScore, VideokeScoreResult } from '../utils/scoring';
+import { playSoundEffect } from '../utils/soundEffects';
 
 export default function HostView() {
   const [roomCode, setRoomCode] = useState<string>(() => {
@@ -49,6 +43,7 @@ export default function HostView() {
   const [playerMode, setPlayerMode] = useState<'video' | 'retro'>('video');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeCheer, setActiveCheer] = useState<string | null>(null);
+  const [keyOffset, setKeyOffset] = useState<number>(0);
 
   // Scoring Modal State
   const [isScoreModalOpen, setIsScoreModalOpen] = useState(false);
@@ -110,6 +105,7 @@ export default function HostView() {
     try {
       await completeSongInQueue(currentTrack.id);
       setCurrentMillisecond(0);
+      setKeyOffset(0);
       clearPitchHistory();
       await fetchQueue();
     } catch (err) {
@@ -117,34 +113,21 @@ export default function HostView() {
     }
   }, [currentTrack, clearPitchHistory, fetchQueue]);
 
-  // Audio SFX generator for remote airhorn blasts
-  const playAirhornSound = useCallback(() => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioCtx();
-      const freqs = [311.13, 370.0, 466.16];
-      freqs.forEach((freq) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-        gain.gain.setValueAtTime(0.12, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.45);
-      });
-    } catch {
-      // Audio blocked or not supported
-    }
-  }, []);
-
   // Visual cheer trigger
   const triggerCheer = useCallback((text = '🎉 WOO HOO! 🎉') => {
     setActiveCheer(text);
     setTimeout(() => setActiveCheer(null), 2500);
   }, []);
+
+  const handleKeyChange = useCallback(
+    (newKey: number) => {
+      const clamped = Math.max(-6, Math.min(6, newKey));
+      setKeyOffset(clamped);
+      sendBroadcastRef.current?.('player:transpose', { key: clamped });
+      triggerCheer(`🎵 KEY: ${clamped > 0 ? `+${clamped}` : clamped === 0 ? 'ORIGINAL' : clamped}`);
+    },
+    [triggerCheer]
+  );
 
   // Trigger Videoke Score Reveal upon song completion
   const handleSongFinished = useCallback(async () => {
@@ -193,15 +176,28 @@ export default function HostView() {
           playerRef.current?.replay();
         }
       } else if (event === 'party:sfx') {
-        playAirhornSound();
-        triggerCheer('📢 AIRHORN BLAST! 📢');
+        const sfxType = payload?.sfxType || 'airhorn';
+        playSoundEffect(sfxType);
+        if (sfxType === 'airhorn') triggerCheer('📢 REGGAE AIRHORN BLAST! 📢');
+        else if (sfxType === 'applause') triggerCheer('👏 STANDING OVATION & CHEERS! 👏');
+        else if (sfxType === 'drumroll') triggerCheer('🥁 DRAMATIC DRUMROLL! 🥁');
+        else if (sfxType === 'gong') triggerCheer('🔔 TAWAG NG TANGHALAN FAIL GONG! 🔔');
+        else triggerCheer('🎉 PARTY SOUND EFFECT! 🎉');
       } else if (event === 'party:cheer') {
+        playSoundEffect('applause');
         triggerCheer('🎉 PARTY CHEERS! 🎤');
+      } else if (event === 'player:transpose') {
+        const newKey = typeof payload?.key === 'number' ? payload.key : 0;
+        const clamped = Math.max(-6, Math.min(6, newKey));
+        setKeyOffset(clamped);
+        triggerCheer(
+          `🎵 KEY TRANSPOSE: ${clamped > 0 ? `+${clamped}` : clamped === 0 ? 'ORIGINAL' : clamped}`
+        );
       } else if (event === 'queue:updated') {
         fetchQueue();
       }
     },
-    [handleSongFinished, playAirhornSound, triggerCheer, fetchQueue]
+    [handleSongFinished, triggerCheer, fetchQueue]
   );
 
   const { status, onlineCount, recentEvents, sendBroadcast } = useRoomChannel(
@@ -260,88 +256,17 @@ export default function HostView() {
 
   return (
     <div className="min-h-screen bg-videoke-bg text-slate-100 flex flex-col justify-between relative overflow-hidden crt-overlay">
-      {/* Top TV Status Bar */}
-      <header className="border-b border-slate-800 bg-slate-950/90 backdrop-blur-md px-6 py-4 flex flex-wrap items-center justify-between gap-4 z-20">
-        {/* Left: Branding & Back Button */}
-        <div className="flex items-center gap-4">
-          <Link
-            to="/"
-            className="p-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white transition-colors"
-            title="Back to Dashboard"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <Tv className="w-5 h-5 text-cyan-400" />
-              <h1 className="text-lg font-black tracking-wider text-glow-cyan">TV HOST SCREEN</h1>
-            </div>
-            <p className="text-[11px] text-slate-400 font-mono">
-              Dual-Screen Realtime Player & Scoring Engine
-            </p>
-          </div>
-        </div>
-
-        {/* Center: Glowing LED Room Badge */}
-        <div className="flex items-center gap-3 px-5 py-2 rounded-xl bg-slate-950 border border-amber-400/40 shadow-neon-amber">
-          <span className="text-xs uppercase font-mono text-amber-500/80">Room Code:</span>
-          <span className="text-2xl font-digital font-black text-amber-400 tracking-widest text-glow-amber">
-            {roomCode}
-          </span>
-          <button
-            onClick={handleRegenerateRoom}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-amber-400 transition-colors"
-            title="Generate New Room Code"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Right: Connected Remotes & Action Buttons */}
-        <div className="flex items-center gap-3">
-          {/* Presence Counter */}
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800">
-            <span
-              className={`w-2.5 h-2.5 rounded-full ${
-                status === 'connected'
-                  ? 'bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse'
-                  : status === 'offline_demo'
-                    ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24]'
-                    : 'bg-red-500'
-              }`}
-            />
-            <Users className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-mono font-bold text-slate-200">
-              {onlineCount} {onlineCount === 1 ? 'Phone' : 'Phones'} Connected
-            </span>
-          </div>
-
-          {/* Copy Join Link Button */}
-          <button
-            onClick={handleCopyLink}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-mono text-slate-300 transition-colors"
-          >
-            {copied ? (
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-            ) : (
-              <Copy className="w-3.5 h-3.5" />
-            )}
-            <span>{copied ? 'Copied!' : 'Copy Link'}</span>
-          </button>
-
-          {/* Open Mobile Remote in New Tab for Local Testing */}
-          <a
-            href={remoteJoinUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-950/80 border border-cyan-500/40 hover:bg-cyan-900 text-xs font-mono text-cyan-400 transition-colors"
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            <span>Open Remote</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-      </header>
+      {/* Top Authentic Marquee Ticker & Control Bar */}
+      <TickerBanner
+        roomCode={roomCode}
+        onlineCount={onlineCount}
+        status={status}
+        queue={queue}
+        onRegenerateRoom={handleRegenerateRoom}
+        onCopyLink={handleCopyLink}
+        copied={copied}
+        remoteJoinUrl={remoteJoinUrl}
+      />
 
       {/* Main TV Layout */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start z-10">
@@ -465,6 +390,40 @@ export default function HostView() {
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>Replay</span>
+                </button>
+              </div>
+
+              {/* Key Transpose Pitch Offset Control Pill */}
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-900 border border-slate-800 shadow-inner">
+                <span className="text-[11px] font-mono text-slate-400 font-bold uppercase">
+                  Key:
+                </span>
+                <button
+                  onClick={() => handleKeyChange(keyOffset - 1)}
+                  disabled={keyOffset <= -6}
+                  className="w-6 h-6 rounded-lg bg-slate-950 hover:bg-slate-800 text-fuchsia-400 font-digital font-bold text-sm flex items-center justify-center active:scale-95 transition-all disabled:opacity-40"
+                  title="Lower key (-1 semitone)"
+                >
+                  ♭
+                </button>
+                <span
+                  className={`font-digital text-xs font-bold px-1.5 tracking-wider ${
+                    keyOffset === 0
+                      ? 'text-slate-400'
+                      : keyOffset > 0
+                        ? 'text-cyan-400 text-glow-cyan'
+                        : 'text-fuchsia-400 text-glow-magenta'
+                  }`}
+                >
+                  {keyOffset > 0 ? `+${keyOffset}` : keyOffset === 0 ? 'ORIG' : keyOffset}
+                </span>
+                <button
+                  onClick={() => handleKeyChange(keyOffset + 1)}
+                  disabled={keyOffset >= 6}
+                  className="w-6 h-6 rounded-lg bg-slate-950 hover:bg-slate-800 text-cyan-400 font-digital font-bold text-sm flex items-center justify-center active:scale-95 transition-all disabled:opacity-40"
+                  title="Raise key (+1 semitone)"
+                >
+                  ♯
                 </button>
               </div>
 

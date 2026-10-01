@@ -21,6 +21,8 @@ import Keypad from '../components/remote/Keypad';
 import SongbookTab from '../components/remote/SongbookTab';
 import QueueTab from '../components/remote/QueueTab';
 import ReservationModal from '../components/remote/ReservationModal';
+import KeyControls from '../components/remote/KeyControls';
+import Soundboard from '../components/remote/Soundboard';
 
 export default function RemoteView() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -28,7 +30,10 @@ export default function RemoteView() {
 
   const [inputRoom, setInputRoom] = useState(roomParam);
   const [activeRoom, setActiveRoom] = useState(roomParam);
-  const [activeTab, setActiveTab] = useState<'keypad' | 'songbook' | 'queue'>('keypad');
+  const [activeTab, setActiveTab] = useState<'keypad' | 'songbook' | 'queue' | 'soundboard'>(
+    'keypad'
+  );
+  const [keyOffset, setKeyOffset] = useState<number>(0);
 
   // Keypad State
   const [digits, setDigits] = useState('');
@@ -74,6 +79,10 @@ export default function RemoteView() {
       if (event === 'party:score_reveal') {
         triggerHaptic([60, 80, 60, 80]);
         showToast(`🏆 ${payload.singer} scored ${payload.score} pts! "${payload.commentary}"`);
+      } else if (event === 'player:transpose') {
+        if (typeof payload?.key === 'number') {
+          setKeyOffset(payload.key);
+        }
       } else if (event === 'queue:updated') {
         refreshQueueCount();
       }
@@ -192,6 +201,24 @@ export default function RemoteView() {
     } else if (actionName === 'party:cheer') {
       showToast('🎉 Cheers sent to TV!');
     }
+  };
+
+  const handleKeyChange = async (newKey: number) => {
+    setKeyOffset(newKey);
+    triggerHaptic(20);
+    await sendBroadcast('player:transpose', {
+      key: newKey,
+      room: activeRoom,
+    });
+    showToast(`Transposed Key: ${newKey > 0 ? `+${newKey}` : newKey === 0 ? 'Original' : newKey}`);
+  };
+
+  const handleSoundboardTrigger = async (sfxType: string, label: string) => {
+    await sendBroadcast('party:sfx', {
+      sfxType,
+      room: activeRoom,
+    });
+    showToast(`Blasted ${label} on TV! 🔊`);
   };
 
   // If no room is active, render Room Code Entry Screen
@@ -388,6 +415,17 @@ export default function RemoteView() {
             }}
           />
         )}
+
+        {/* TAB 4: SOUNDBOARD & KEY CONTROLS */}
+        {activeTab === 'soundboard' && (
+          <div className="flex flex-col gap-4 w-full">
+            {/* Vocal Range Key Transposer */}
+            <KeyControls currentKey={keyOffset} onChangeKey={handleKeyChange} />
+
+            {/* Interactive Soundboard */}
+            <Soundboard onTriggerSfx={handleSoundboardTrigger} />
+          </div>
+        )}
       </main>
 
       {/* Reservation Modal */}
@@ -434,6 +472,16 @@ export default function RemoteView() {
               {queueCount}
             </span>
           )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('soundboard')}
+          className={`relative flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
+            activeTab === 'soundboard' ? 'text-amber-400 font-bold' : 'text-slate-500'
+          }`}
+        >
+          <Volume2 className="w-5 h-5" />
+          <span>Soundboard</span>
         </button>
       </nav>
     </div>
