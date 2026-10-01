@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #030712;
+    color: #f8fafc;
+    font-family:
+      'Inter',
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      Roboto,
+      sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Retro CRT Scanline Overlay for Videoke TV view */
+.crt-overlay {
+  background:
+    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+    linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+  background-size:
+    100% 3px,
+    6px 100%;
+  pointer-events: none;
+}
+
+/* Neon Text Glow Utilities */
+.text-glow-cyan {
+  text-shadow:
+    0 0 10px rgba(6, 182, 212, 0.8),
+    0 0 20px rgba(6, 182, 212, 0.4);
+}
+
+.text-glow-yellow {
+  text-shadow:
+    0 0 10px rgba(253, 224, 71, 0.8),
+    0 0 20px rgba(253, 224, 71, 0.4);
+}
+
+.text-glow-amber {
+  text-shadow:
+    0 0 10px rgba(251, 191, 36, 0.8),
+    0 0 20px rgba(251, 191, 36, 0.4);
+}
+
+.text-glow-magenta {
+  text-shadow:
+    0 0 10px rgba(217, 70, 239, 0.8),
+    0 0 20px rgba(217, 70, 239, 0.4);
+}
+
+/* 7-Segment Digital Font class */
+.font-digital {
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  letter-spacing: 0.1em;
+}
