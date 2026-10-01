@@ -4,6 +4,8 @@ import { Search, Mic2, Tv, Smartphone, Music, CheckCircle2, AlertCircle } from '
 import { searchSongs } from './lib/songs';
 import { isSupabaseConfigured } from './lib/supabase';
 import type { Song } from './types/song';
+import HostView from './views/HostView';
+import RemoteView from './views/RemoteView';
 
 function HomeDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -199,40 +201,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomeDashboard />} />
-        <Route
-          path="/host"
-          element={
-            <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
-              <h1 className="text-3xl font-black text-cyan-400 mb-2">TV Host Screen</h1>
-              <p className="text-slate-400 font-mono text-sm mb-6">
-                Coming on Day 2 & Day 4: YouTube IFrame + Synced LRC Overlay + QR Pairing!
-              </p>
-              <Link
-                to="/"
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-mono"
-              >
-                ← Back to Dashboard
-              </Link>
-            </div>
-          }
-        />
-        <Route
-          path="/remote"
-          element={
-            <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
-              <h1 className="text-3xl font-black text-fuchsia-400 mb-2">Mobile Remote Control</h1>
-              <p className="text-slate-400 font-mono text-sm mb-6">
-                Coming on Day 3: Megapro 3x4 Matrix Keypad + LED Readout + Queue Drawer!
-              </p>
-              <Link
-                to="/"
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-mono"
-              >
-                ← Back to Dashboard
-              </Link>
-            </div>
-          }
-        />
+        <Route path="/host" element={<HostView />} />
+        <Route path="/remote" element={<RemoteView />} />
       </Routes>
     </BrowserRouter>
   );
