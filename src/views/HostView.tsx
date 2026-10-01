@@ -236,6 +236,14 @@ export default function HostView() {
     };
   }, [roomCode, fetchQueue]);
 
+  const handleTimeUpdate = useCallback((ms: number) => {
+    setCurrentMillisecond(ms);
+  }, []);
+
+  const handleStateChange = useCallback((state: number) => {
+    setIsPlaying(state === 1);
+  }, []);
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       stageContainerRef.current?.requestFullscreen?.();
@@ -281,8 +289,8 @@ export default function HostView() {
                   ref={playerRef}
                   videoId={currentTrack.song.youtube_id}
                   mode={playerMode}
-                  onTimeUpdate={(ms) => setCurrentMillisecond(ms)}
-                  onStateChange={(state) => setIsPlaying(state === 1)}
+                  onTimeUpdate={handleTimeUpdate}
+                  onStateChange={handleStateChange}
                   onEnded={handleSongFinished}
                 />
 

@@ -25,6 +25,17 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
     const playerRef = useRef<YTPlayer | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const animFrameRef = useRef<number | null>(null);
+    const currentVideoIdRef = useRef<string | null>(null);
+
+    // Keep callback refs fresh without causing effect re-runs
+    const onEndedRef = useRef(onEnded);
+    onEndedRef.current = onEnded;
+
+    const onStateChangeRef = useRef(onStateChange);
+    onStateChangeRef.current = onStateChange;
+
+    const onTimeUpdateRef = useRef(onTimeUpdate);
+    onTimeUpdateRef.current = onTimeUpdate;
 
     const [playerState, setPlayerState] = useState<number>(-1);
     const [needsUserGesture, setNeedsUserGesture] = useState(false);
@@ -69,7 +80,7 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
             const timeSec = playerRef.current.getCurrentTime();
             if (typeof timeSec === 'number' && !isNaN(timeSec)) {
               const ms = Math.floor(timeSec * 1000);
-              if (onTimeUpdate) onTimeUpdate(ms);
+              onTimeUpdateRef.current?.(ms);
             }
           } catch {
             // Player might be unmounting or in transition
@@ -90,12 +101,18 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
         isSubscribed = false;
         if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       };
-    }, [playerState, onTimeUpdate]);
+    }, [playerState]);
 
-    // Initialize or re-cue player when videoId changes
+    // Initialize or re-cue player ONLY when isLoaded or videoId changes
     useEffect(() => {
       if (!isLoaded || !videoId) return;
 
+      // Guard against re-loading the exact same video
+      if (currentVideoIdRef.current === videoId && playerRef.current) {
+        return;
+      }
+
+      currentVideoIdRef.current = videoId;
       setEmbedError(null);
       setNeedsUserGesture(false);
 
@@ -153,14 +170,14 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
             },
             onStateChange: (event) => {
               setPlayerState(event.data);
-              if (onStateChange) onStateChange(event.data);
+              onStateChangeRef.current?.(event.data);
 
               if (event.data === window.YT.PlayerState.PLAYING) {
                 setNeedsUserGesture(false);
               }
 
               if (event.data === window.YT.PlayerState.ENDED) {
-                onEnded();
+                onEndedRef.current?.();
               }
             },
             onError: (event) => {
@@ -188,9 +205,10 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
             // Ignore destroy errors
           }
           playerRef.current = null;
+          currentVideoIdRef.current = null;
         }
       };
-    }, [isLoaded, videoId, onEnded, onStateChange]);
+    }, [isLoaded, videoId]);
 
     const handleManualPlay = () => {
       setNeedsUserGesture(false);
