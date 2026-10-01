@@ -293,3 +293,22 @@ export async function moveSongToTop(roomCode: string, queueId: string): Promise<
   }
   return true;
 }
+
+/**
+ * Mark a queued song as completed when playback finishes
+ */
+export async function completeSongInQueue(queueId: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    return true;
+  }
+
+  const { error } = await (supabase.from('queue_items') as any)
+    .update({ status: 'completed' })
+    .eq('id', queueId);
+
+  if (error) {
+    console.error('Error completing queue item:', error);
+    return false;
+  }
+  return true;
+}

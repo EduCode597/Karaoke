@@ -11,11 +11,18 @@ export interface RoomBroadcastMessage {
   timestamp: string;
 }
 
-export function useRoomChannel(roomCode: string, isHost = false) {
+export function useRoomChannel(
+  roomCode: string,
+  isHost = false,
+  onBroadcast?: (event: string, payload: any) => void
+) {
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [onlineCount, setOnlineCount] = useState<number>(0);
   const [recentEvents, setRecentEvents] = useState<RoomBroadcastMessage[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const onBroadcastRef = useRef(onBroadcast);
+  onBroadcastRef.current = onBroadcast;
+
   const clientIdRef = useRef<string>(
     isHost ? 'host' : `remote-${Math.random().toString(36).substring(2, 8)}`
   );
@@ -70,6 +77,9 @@ export function useRoomChannel(roomCode: string, isHost = false) {
         timestamp: new Date().toLocaleTimeString(),
       };
       setRecentEvents((prev) => [message, ...prev.slice(0, 19)]); // Keep last 20 events
+      if (onBroadcastRef.current) {
+        onBroadcastRef.current(eventPayload.event, eventPayload.payload);
+      }
     });
 
     // 4. Subscribe to the channel

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -17,13 +17,22 @@ import {
   ListMusic,
   User,
   Sparkles,
-  Mic2,
+  Play,
+  Pause,
+  SkipForward,
+  RotateCcw,
+  Film,
+  Maximize,
+  Minimize,
 } from 'lucide-react';
 import { generateRoomCode, getStoredRoomCode, setStoredRoomCode } from '../utils/room';
 import { useRoomChannel } from '../hooks/useRoomChannel';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { getRoomQueue } from '../lib/songs';
+import { getRoomQueue, completeSongInQueue } from '../lib/songs';
 import type { QueueItem } from '../types/song';
+
+import YouTubePlayer, { YouTubePlayerHandle } from '../components/player/YouTubePlayer';
+import LyricsOverlay from '../components/player/LyricsOverlay';
 
 export default function HostView() {
   const [roomCode, setRoomCode] = useState<string>(() => {
@@ -31,8 +40,14 @@ export default function HostView() {
   });
   const [copied, setCopied] = useState(false);
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [currentMillisecond, setCurrentMillisecond] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playerMode, setPlayerMode] = useState<'video' | 'retro'>('video');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeCheer, setActiveCheer] = useState<string | null>(null);
 
-  const { status, onlineCount, recentEvents } = useRoomChannel(roomCode, true);
+  const playerRef = useRef<YouTubePlayerHandle | null>(null);
+  const stageContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Keep room code persisted in session
   useEffect(() => {
@@ -63,6 +78,76 @@ export default function HostView() {
     }
   }, [roomCode]);
 
+  const currentTrack = queue[0] || null;
+
+  // Advance to next song when playback finishes or skip is triggered
+  const handleAdvanceQueue = useCallback(async () => {
+    if (!currentTrack) return;
+    try {
+      await completeSongInQueue(currentTrack.id);
+      setCurrentMillisecond(0);
+      await fetchQueue();
+    } catch (err) {
+      console.error('Error advancing queue:', err);
+    }
+  }, [currentTrack, fetchQueue]);
+
+  // Audio SFX generator for remote airhorn blasts
+  const playAirhornSound = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const freqs = [311.13, 370.0, 466.16];
+      freqs.forEach((freq) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.45);
+      });
+    } catch {
+      // Audio blocked or not supported
+    }
+  }, []);
+
+  // Visual cheer trigger
+  const triggerCheer = useCallback((text = '🎉 WOO HOO! 🎉') => {
+    setActiveCheer(text);
+    setTimeout(() => setActiveCheer(null), 2500);
+  }, []);
+
+  // Broadcast Handler for sub-20ms Mobile Remote control commands
+  const handleBroadcast = useCallback(
+    (event: string, payload: any) => {
+      if (event === 'player:action') {
+        const action = payload?.action;
+        if (action === 'play') {
+          playerRef.current?.play();
+        } else if (action === 'pause') {
+          playerRef.current?.pause();
+        } else if (action === 'skip') {
+          handleAdvanceQueue();
+        } else if (action === 'replay') {
+          playerRef.current?.replay();
+        }
+      } else if (event === 'party:sfx') {
+        playAirhornSound();
+        triggerCheer('📢 AIRHORN BLAST! 📢');
+      } else if (event === 'party:cheer') {
+        triggerCheer('🎉 PARTY CHEERS! 🎤');
+      } else if (event === 'queue:updated') {
+        fetchQueue();
+      }
+    },
+    [handleAdvanceQueue, playAirhornSound, triggerCheer, fetchQueue]
+  );
+
+  const { status, onlineCount, recentEvents } = useRoomChannel(roomCode, true, handleBroadcast);
+
   useEffect(() => {
     fetchQueue();
 
@@ -90,15 +175,15 @@ export default function HostView() {
     };
   }, [roomCode, fetchQueue]);
 
-  // Also refresh queue when broadcast queue:updated event arrives
-  useEffect(() => {
-    if (recentEvents.length > 0 && recentEvents[0].event === 'queue:updated') {
-      fetchQueue();
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      stageContainerRef.current?.requestFullscreen?.();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.();
+      setIsFullscreen(false);
     }
-  }, [recentEvents, fetchQueue]);
-
-  const currentTrack = queue[0] || null;
-  const upcomingQueue = queue.slice(1);
+  };
 
   return (
     <div className="min-h-screen bg-videoke-bg text-slate-100 flex flex-col justify-between relative overflow-hidden crt-overlay">
@@ -119,7 +204,7 @@ export default function HostView() {
               <h1 className="text-lg font-black tracking-wider text-glow-cyan">TV HOST SCREEN</h1>
             </div>
             <p className="text-[11px] text-slate-400 font-mono">
-              Dual-Screen Realtime Player Display
+              Dual-Screen Realtime Player & Lyrics Engine
             </p>
           </div>
         </div>
@@ -189,69 +274,149 @@ export default function HostView() {
       <main className="flex-1 max-w-7xl mx-auto w-full p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start z-10">
         {/* Left 2 Cols: Main Player & Stage Display */}
         <div className="lg:col-span-2 flex flex-col gap-4">
-          {/* Simulated Video Player Screen */}
-          <div className="aspect-video w-full rounded-2xl bg-black border border-slate-800 relative overflow-hidden flex flex-col items-center justify-center p-8 text-center shadow-2xl">
-            {/* Top Stage Accent Glow */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent" />
+          {/* Main Stage & Player Viewport */}
+          <div ref={stageContainerRef} className="relative w-full">
+            {currentTrack && currentTrack.song?.youtube_id ? (
+              /* Active Playback Stage */
+              <div className="relative aspect-video w-full rounded-2xl overflow-hidden shadow-2xl bg-black border border-slate-800">
+                <YouTubePlayer
+                  ref={playerRef}
+                  videoId={currentTrack.song.youtube_id}
+                  mode={playerMode}
+                  onTimeUpdate={(ms) => setCurrentMillisecond(ms)}
+                  onStateChange={(state) => setIsPlaying(state === 1)}
+                  onEnded={handleAdvanceQueue}
+                />
 
-            {/* When a track is in the queue vs when empty */}
-            {currentTrack ? (
-              <div className="flex flex-col items-center gap-4 max-w-lg z-10 animate-fade-in">
-                <div className="px-4 py-1.5 rounded-full bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 font-mono text-xs font-bold uppercase tracking-widest flex items-center gap-2 shadow-neon-cyan">
-                  <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                  <span>Up Next on Stage</span>
-                </div>
+                {/* Real-time Synchronized LRC Lyrics Display */}
+                <LyricsOverlay
+                  lrcContent={currentTrack.song.lrc_content}
+                  currentMillisecond={currentMillisecond}
+                  songTitle={currentTrack.song.title}
+                  artist={currentTrack.song.artist}
+                  singerName={currentTrack.singer_name}
+                />
+              </div>
+            ) : (
+              /* Empty Standby Stage */
+              <div className="aspect-video w-full rounded-2xl bg-black border border-slate-800 relative overflow-hidden flex flex-col items-center justify-center p-8 text-center shadow-2xl">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent" />
 
-                <div className="flex flex-col items-center gap-1">
-                  <span className="font-digital text-3xl font-black text-amber-400 text-glow-amber tracking-wider">
-                    {currentTrack.song?.code || '-----'}
-                  </span>
-                  <h2 className="text-3xl md:text-4xl font-black tracking-wide text-white text-glow-cyan">
-                    {currentTrack.song?.title || 'Unknown Title'}
+                <div className="flex flex-col items-center gap-4 max-w-md">
+                  <div className="w-16 h-16 rounded-full bg-slate-900/80 border border-slate-800 flex items-center justify-center shadow-neon-cyan">
+                    <Music className="w-8 h-8 text-cyan-400 animate-pulse" />
+                  </div>
+                  <h2 className="text-2xl font-black tracking-wide text-white text-glow-cyan">
+                    READY FOR SINGER
                   </h2>
-                  <p className="text-base text-slate-300 font-medium">
-                    {currentTrack.song?.artist || 'Unknown Artist'}
+                  <p className="text-sm text-slate-400 font-mono">
+                    Scan the QR code on the right with your phone to pick a song and step up to the
+                    mic!
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 text-slate-200">
-                  <Mic2 className="w-5 h-5 text-fuchsia-400" />
-                  <span className="text-sm font-mono">
-                    Singer:{' '}
-                    <strong className="text-fuchsia-300 text-base">
-                      {currentTrack.singer_name || 'Guest'}
-                    </strong>
+                <div className="absolute bottom-4 left-4 right-4 py-3 px-6 rounded-xl bg-black/80 border border-slate-800/80 backdrop-blur-md flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-mono text-slate-400">Microphone: Standby</span>
+                  </div>
+                  <span className="text-xs font-digital text-amber-400 tracking-wider">
+                    PINOYVIDEOKE ENGINE • STANDBY
                   </span>
                 </div>
               </div>
-            ) : (
-              <div className="flex flex-col items-center gap-4 max-w-md">
-                <div className="w-16 h-16 rounded-full bg-slate-900/80 border border-slate-800 flex items-center justify-center shadow-neon-cyan">
-                  <Music className="w-8 h-8 text-cyan-400 animate-pulse" />
-                </div>
-                <h2 className="text-2xl font-black tracking-wide text-white text-glow-cyan">
-                  READY FOR SINGER
-                </h2>
-                <p className="text-sm text-slate-400 font-mono">
-                  Scan the QR code on the right with your phone to pick a song and step up to the
-                  mic!
-                </p>
-              </div>
             )}
 
-            {/* Bottom Retro Banner */}
-            <div className="absolute bottom-4 left-4 right-4 py-3 px-6 rounded-xl bg-black/80 border border-slate-800/80 backdrop-blur-md flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Volume2 className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-mono text-slate-400">
-                  {queue.length > 0 ? `${queue.length} Songs Queued` : 'Microphone: Standby'}
-                </span>
+            {/* Floating Visual Cheer Reaction Banner */}
+            {activeCheer && (
+              <div className="absolute top-8 left-1/2 -translate-x-1/2 z-40 px-6 py-3 rounded-2xl bg-fuchsia-950/90 border border-fuchsia-500/60 text-fuchsia-200 font-black text-sm uppercase tracking-widest shadow-2xl backdrop-blur-md animate-bounce">
+                {activeCheer}
               </div>
-              <span className="text-xs font-digital text-amber-400 tracking-wider">
-                PINOYVIDEOKE ENGINE • READY
-              </span>
-            </div>
+            )}
           </div>
+
+          {/* Interactive Player Stage Control Toolbar */}
+          {currentTrack && (
+            <div className="p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+              {/* Playback Transport Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (isPlaying) {
+                      playerRef.current?.pause();
+                    } else {
+                      playerRef.current?.play();
+                    }
+                  }}
+                  className={`py-2 px-4 rounded-xl font-mono text-xs font-bold flex items-center gap-2 active:scale-95 transition-all shadow-md ${
+                    isPlaying
+                      ? 'bg-amber-400 hover:bg-amber-300 text-black shadow-neon-amber'
+                      : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_12px_#10b981]'
+                  }`}
+                >
+                  {isPlaying ? (
+                    <>
+                      <Pause className="w-4 h-4 fill-black" />
+                      <span>Pause</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 fill-black" />
+                      <span>Play</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleAdvanceQueue}
+                  className="py-2 px-3.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500/50 hover:text-cyan-400 text-slate-300 font-mono text-xs flex items-center gap-1.5 active:scale-95 transition-all"
+                  title="Skip to next queued track"
+                >
+                  <SkipForward className="w-4 h-4" />
+                  <span>Skip</span>
+                </button>
+
+                <button
+                  onClick={() => playerRef.current?.replay()}
+                  className="py-2 px-3.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-fuchsia-500/50 hover:text-fuchsia-400 text-slate-300 font-mono text-xs flex items-center gap-1.5 active:scale-95 transition-all"
+                  title="Replay track from beginning"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Replay</span>
+                </button>
+              </div>
+
+              {/* Mode Toggle & Fullscreen Controls */}
+              <div className="flex items-center gap-2">
+                {/* Dual Background Mode Toggle (Video vs Retro KTV) */}
+                <button
+                  onClick={() => setPlayerMode((prev) => (prev === 'video' ? 'retro' : 'video'))}
+                  className={`py-2 px-3 rounded-xl border text-xs font-mono flex items-center gap-1.5 active:scale-95 transition-all ${
+                    playerMode === 'retro'
+                      ? 'bg-fuchsia-950 border-fuchsia-500/60 text-fuchsia-300 shadow-neon-magenta'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                  title="Toggle Retro Videoke Scenery Background"
+                >
+                  <Film className="w-3.5 h-3.5" />
+                  <span>{playerMode === 'retro' ? 'Retro KTV Mode' : 'Native Video'}</span>
+                </button>
+
+                {/* Fullscreen Button */}
+                <button
+                  onClick={toggleFullscreen}
+                  className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white active:scale-95 transition-all"
+                  title="Toggle Fullscreen Stage"
+                >
+                  {isFullscreen ? (
+                    <Minimize className="w-4 h-4" />
+                  ) : (
+                    <Maximize className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Room Pairing Ticker Marquee */}
           <div className="py-2.5 px-4 rounded-xl bg-slate-950 border border-slate-800/80 overflow-hidden flex items-center gap-3">
@@ -265,9 +430,9 @@ export default function HostView() {
                 <span className="text-amber-400 font-bold">{roomCode}</span> ★ CONNECTED REMOTES:{' '}
                 <span className="text-cyan-400 font-bold">{onlineCount}</span> ★{' '}
                 {currentTrack
-                  ? `NEXT SINGER: ${currentTrack.singer_name} (${currentTrack.song?.title}) ★ `
+                  ? `NOW PLAYING: ${currentTrack.singer_name} singing "${currentTrack.song?.title}" ★ `
                   : 'READY FOR SINGERS ★ '}
-                SEARCH OVER 30+ CLASSIC OPM AND POP HITS ★
+                POWERED BY SUPABASE REALTIME & YOUTUBE ENGINE ★
               </p>
             </div>
           </div>
@@ -328,31 +493,45 @@ export default function HostView() {
                   </span>
                 </div>
               ) : (
-                upcomingQueue.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80 flex items-center justify-between gap-2 text-xs"
-                  >
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <span className="w-5 h-5 rounded-lg bg-slate-800 text-slate-400 font-mono font-bold flex items-center justify-center text-[10px] shrink-0">
-                        {idx + 2}
-                      </span>
-                      <div className="overflow-hidden">
-                        <h5 className="font-bold text-white text-xs truncate">
-                          {item.song?.title || 'Unknown Title'}
-                        </h5>
-                        <p className="text-[10px] text-slate-400 truncate flex items-center gap-1">
-                          <User className="w-2.5 h-2.5 text-cyan-400" />
-                          <span>{item.singer_name || 'Guest'}</span>
-                        </p>
-                      </div>
-                    </div>
+                queue.map((item, idx) => {
+                  const isCurrent = idx === 0;
 
-                    <span className="font-digital text-amber-400 text-xs font-bold shrink-0">
-                      {item.song?.code}
-                    </span>
-                  </div>
-                ))
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs transition-all ${
+                        isCurrent
+                          ? 'bg-gradient-to-r from-cyan-950/50 to-slate-900 border-cyan-500/50 shadow-neon-cyan/20'
+                          : 'bg-slate-900/80 border-slate-800/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <span
+                          className={`w-5 h-5 rounded-lg font-mono font-bold flex items-center justify-center text-[10px] shrink-0 ${
+                            isCurrent
+                              ? 'bg-cyan-500 text-black shadow-neon-cyan'
+                              : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {isCurrent ? <Sparkles className="w-3 h-3" /> : idx + 1}
+                        </span>
+                        <div className="overflow-hidden">
+                          <h5 className="font-bold text-white text-xs truncate">
+                            {item.song?.title || 'Unknown Title'}
+                          </h5>
+                          <p className="text-[10px] text-slate-400 truncate flex items-center gap-1">
+                            <User className="w-2.5 h-2.5 text-cyan-400" />
+                            <span>{item.singer_name || 'Guest'}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <span className="font-digital text-amber-400 text-xs font-bold shrink-0">
+                        {item.song?.code}
+                      </span>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
@@ -395,8 +574,8 @@ export default function HostView() {
 
       {/* Footer */}
       <footer className="border-t border-slate-900/80 px-6 py-3 bg-slate-950/60 text-slate-600 text-[11px] font-mono flex items-center justify-between z-10">
-        <span>PinoyVideoke Host View v1.2.0</span>
-        <span>Supabase Realtime Engine • Postgres Replication</span>
+        <span>PinoyVideoke Host View v1.3.0</span>
+        <span>YouTube IFrame Player • 60fps Synchronized LRC Engine</span>
       </footer>
     </div>
   );
