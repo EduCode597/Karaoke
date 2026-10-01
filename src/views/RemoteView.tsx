@@ -46,28 +46,6 @@ export default function RemoteView() {
   // Notification Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const { status, onlineCount, sendBroadcast } = useRoomChannel(activeRoom, false);
-
-  // Sync active room to session and URL
-  useEffect(() => {
-    if (activeRoom) {
-      setStoredRoomCode(activeRoom);
-      setSearchParams({ room: activeRoom });
-    }
-  }, [activeRoom, setSearchParams]);
-
-  // Haptic feedback trigger
-  const triggerHaptic = (ms: number | number[] = 15) => {
-    if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate(ms);
-    }
-  };
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
-
   // Sync Queue Count
   const refreshQueueCount = useCallback(async () => {
     if (!activeRoom) return;
@@ -78,6 +56,44 @@ export default function RemoteView() {
       // Ignore count fetch errors
     }
   }, [activeRoom]);
+
+  // Haptic feedback trigger
+  const triggerHaptic = useCallback((ms: number | number[] = 15) => {
+    if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(ms);
+    }
+  }, []);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  }, []);
+
+  const handleRemoteBroadcast = useCallback(
+    (event: string, payload: any) => {
+      if (event === 'party:score_reveal') {
+        triggerHaptic([60, 80, 60, 80]);
+        showToast(`🏆 ${payload.singer} scored ${payload.score} pts! "${payload.commentary}"`);
+      } else if (event === 'queue:updated') {
+        refreshQueueCount();
+      }
+    },
+    [triggerHaptic, showToast, refreshQueueCount]
+  );
+
+  const { status, onlineCount, sendBroadcast } = useRoomChannel(
+    activeRoom,
+    false,
+    handleRemoteBroadcast
+  );
+
+  // Sync active room to session and URL
+  useEffect(() => {
+    if (activeRoom) {
+      setStoredRoomCode(activeRoom);
+      setSearchParams({ room: activeRoom });
+    }
+  }, [activeRoom, setSearchParams]);
 
   useEffect(() => {
     refreshQueueCount();
