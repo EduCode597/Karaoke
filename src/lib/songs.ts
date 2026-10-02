@@ -236,8 +236,7 @@ export async function removeSongFromQueue(queueId: string): Promise<boolean> {
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      //127.0.0.1:62172/static/artifacts/ed23dae1-6a8d-402f-a22c-8eff643be586/.user_uploaded/media_1790967282257.png?csrf=71b81f96-0f98-40e7-acd5-ff6b64a6a8fc
-      https: if (key?.startsWith('videoke_queue_')) {
+      if (key?.startsWith('videoke_queue_')) {
         const q = JSON.parse(localStorage.getItem(key) || '[]');
         const updated = q.filter((item: QueueItem) => item.id !== queueId);
         localStorage.setItem(key, JSON.stringify(updated));
