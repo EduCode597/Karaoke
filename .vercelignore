@@ -1,6 +1,7 @@
 # Vercel deployment ignore rules
 SPRINT-PLAN.md
 KARAOKE-VIDEO-SYNC-PLAN.md
+PRD-Filipino-Videoke-Webapp.md
 sprint/
 scripts/
 .agents/
