@@ -287,55 +287,57 @@ export default function RemoteView() {
   return (
     <div className="min-h-[100dvh] bg-videoke-bg text-slate-100 flex flex-col justify-between selection:bg-fuchsia-500 selection:text-black">
       {/* Top Header Bar */}
-      <header className="border-b border-slate-800 bg-slate-950/95 backdrop-blur-md px-4 py-3 flex items-center justify-between sticky top-0 z-30">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/"
-            className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  status === 'connected'
-                    ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
-                    : status === 'offline_demo'
-                      ? 'bg-amber-400'
-                      : 'bg-red-500 animate-pulse'
-                }`}
-              />
-              <span className="text-[10px] uppercase font-mono text-slate-400">
-                {status === 'connected' ? `Paired (${onlineCount} in room)` : 'Connecting...'}
-              </span>
+      <header className="border-b border-slate-800 bg-slate-950/95 backdrop-blur-md px-4 sm:px-6 py-3 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    status === 'connected'
+                      ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
+                      : status === 'offline_demo'
+                        ? 'bg-amber-400'
+                        : 'bg-red-500 animate-pulse'
+                  }`}
+                />
+                <span className="text-[10px] uppercase font-mono text-slate-400">
+                  {status === 'connected' ? `Paired (${onlineCount} in room)` : 'Connecting...'}
+                </span>
+              </div>
+              <p className="text-sm font-digital font-black text-amber-400 tracking-wider">
+                {activeRoom}
+              </p>
             </div>
-            <p className="text-sm font-digital font-black text-amber-400 tracking-wider">
-              {activeRoom}
-            </p>
           </div>
-        </div>
 
-        {/* Header Right Actions */}
-        <div className="flex items-center gap-2">
-          {/* Quick Cheer / SFX Button */}
-          <button
-            onClick={() => handleBroadcastAction('party:sfx', { sfxType: 'airhorn' })}
-            className="p-2 rounded-xl bg-fuchsia-950/80 border border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-900 active:scale-90 transition-transform shadow-neon-magenta"
-            title="Send Airhorn Sound Effect"
-          >
-            <Volume2 className="w-4 h-4" />
-          </button>
+          {/* Header Right Actions */}
+          <div className="flex items-center gap-2">
+            {/* Quick Cheer / SFX Button */}
+            <button
+              onClick={() => handleBroadcastAction('party:sfx', { sfxType: 'airhorn' })}
+              className="p-2 rounded-xl bg-fuchsia-950/80 border border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-900 active:scale-90 transition-transform shadow-neon-magenta"
+              title="Send Airhorn Sound Effect"
+            >
+              <Volume2 className="w-4 h-4" />
+            </button>
 
-          <button
-            onClick={() => {
-              setActiveRoom('');
-              setStoredRoomCode('');
-            }}
-            className="text-[11px] font-mono px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors"
-          >
-            Change
-          </button>
+            <button
+              onClick={() => {
+                setActiveRoom('');
+                setStoredRoomCode('');
+              }}
+              className="text-[11px] font-mono px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors"
+            >
+              Change
+            </button>
+          </div>
         </div>
       </header>
 
@@ -348,7 +350,17 @@ export default function RemoteView() {
       )}
 
       {/* Main Tab Screen Area */}
-      <main className="max-w-md mx-auto w-full px-4 py-4 flex-1 flex flex-col justify-start">
+      <main
+        className={`mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 flex-1 flex flex-col justify-start transition-all duration-300 ${
+          activeTab === 'songbook'
+            ? 'max-w-7xl'
+            : activeTab === 'queue'
+              ? 'max-w-4xl'
+              : activeTab === 'soundboard'
+                ? 'max-w-3xl'
+                : 'max-w-md'
+        }`}
+      >
         {/* TAB 1: 3x4 KEYPAD */}
         {activeTab === 'keypad' && (
           <div className="flex flex-col gap-4 w-full">
@@ -438,51 +450,53 @@ export default function RemoteView() {
       />
 
       {/* Bottom Sticky Mobile Tab Navigation */}
-      <nav className="border-t border-slate-800 bg-slate-950/95 backdrop-blur-md px-6 py-2 flex items-center justify-around sticky bottom-0 z-30">
-        <button
-          onClick={() => setActiveTab('keypad')}
-          className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
-            activeTab === 'keypad' ? 'text-amber-400 font-bold' : 'text-slate-500'
-          }`}
-        >
-          <KeypadIcon className="w-5 h-5" />
-          <span>Keypad</span>
-        </button>
+      <nav className="border-t border-slate-800 bg-slate-950/95 backdrop-blur-md px-4 py-2 sticky bottom-0 z-30">
+        <div className="max-w-md mx-auto w-full flex items-center justify-around">
+          <button
+            onClick={() => setActiveTab('keypad')}
+            className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
+              activeTab === 'keypad' ? 'text-amber-400 font-bold' : 'text-slate-500'
+            }`}
+          >
+            <KeypadIcon className="w-5 h-5" />
+            <span>Keypad</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('songbook')}
-          className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
-            activeTab === 'songbook' ? 'text-cyan-400 font-bold' : 'text-slate-500'
-          }`}
-        >
-          <BookOpen className="w-5 h-5" />
-          <span>Songbook</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('songbook')}
+            className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
+              activeTab === 'songbook' ? 'text-cyan-400 font-bold' : 'text-slate-500'
+            }`}
+          >
+            <BookOpen className="w-5 h-5" />
+            <span>Songbook</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('queue')}
-          className={`relative flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
-            activeTab === 'queue' ? 'text-fuchsia-400 font-bold' : 'text-slate-500'
-          }`}
-        >
-          <ListMusic className="w-5 h-5" />
-          <span>Queue</span>
-          {queueCount > 0 && (
-            <span className="absolute -top-1 right-2 px-1.5 py-0.2 rounded-full bg-fuchsia-500 text-black font-bold text-[9px]">
-              {queueCount}
-            </span>
-          )}
-        </button>
+          <button
+            onClick={() => setActiveTab('queue')}
+            className={`relative flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
+              activeTab === 'queue' ? 'text-fuchsia-400 font-bold' : 'text-slate-500'
+            }`}
+          >
+            <ListMusic className="w-5 h-5" />
+            <span>Queue</span>
+            {queueCount > 0 && (
+              <span className="absolute -top-1 right-2 px-1.5 py-0.2 rounded-full bg-fuchsia-500 text-black font-bold text-[9px]">
+                {queueCount}
+              </span>
+            )}
+          </button>
 
-        <button
-          onClick={() => setActiveTab('soundboard')}
-          className={`relative flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
-            activeTab === 'soundboard' ? 'text-amber-400 font-bold' : 'text-slate-500'
-          }`}
-        >
-          <Volume2 className="w-5 h-5" />
-          <span>Soundboard</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('soundboard')}
+            className={`relative flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
+              activeTab === 'soundboard' ? 'text-amber-400 font-bold' : 'text-slate-500'
+            }`}
+          >
+            <Volume2 className="w-5 h-5" />
+            <span>Soundboard</span>
+          </button>
+        </div>
       </nav>
     </div>
   );

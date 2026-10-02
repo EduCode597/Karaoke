@@ -20,6 +20,9 @@ export function useRoomChannel(
   const [onlineCount, setOnlineCount] = useState<number>(0);
   const [recentEvents, setRecentEvents] = useState<RoomBroadcastMessage[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const bcRef = useRef<BroadcastChannel | null>(null);
+  const processedMsgIdsRef = useRef<Set<string>>(new Set());
+
   const onBroadcastRef = useRef(onBroadcast);
   onBroadcastRef.current = onBroadcast;
 
@@ -33,73 +36,162 @@ export function useRoomChannel(
       return;
     }
 
-    if (!isSupabaseConfigured) {
-      // In offline/demo mode, simulate successful connection
-      setStatus('offline_demo');
-      setOnlineCount(1);
-      return;
+    const normalizedRoom = roomCode.toUpperCase().trim();
+    setStatus('connecting');
+
+    // 1. Setup local BroadcastChannel for 0ms cross-tab & offline room sync
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel(`karaoke_room_${normalizedRoom}`);
+        bcRef.current = bc;
+
+        bc.onmessage = (ev) => {
+          const { event, payload, senderId, msgId } = ev.data || {};
+          if (!event || senderId === clientIdRef.current) return;
+
+          // Prevent duplicate execution if also received via Supabase
+          if (msgId && processedMsgIdsRef.current.has(msgId)) return;
+          if (msgId) {
+            processedMsgIdsRef.current.add(msgId);
+            if (processedMsgIdsRef.current.size > 200) {
+              processedMsgIdsRef.current.clear();
+            }
+          }
+
+          if (event === 'presence:ping' && isHost) {
+            bc?.postMessage({ event: 'presence:pong', senderId: clientIdRef.current });
+            setOnlineCount((c) => Math.max(1, c + 1));
+            return;
+          }
+          if (event === 'presence:pong' && !isHost) {
+            setStatus('connected');
+            setOnlineCount(1);
+            return;
+          }
+
+          const message: RoomBroadcastMessage = {
+            event,
+            payload,
+            senderId,
+            timestamp: new Date().toLocaleTimeString(),
+          };
+          setRecentEvents((prev) => [message, ...prev.slice(0, 19)]);
+          if (onBroadcastRef.current) {
+            onBroadcastRef.current(event, payload);
+          }
+        };
+
+        if (!isHost) {
+          bc.postMessage({ event: 'presence:ping', senderId: clientIdRef.current });
+        }
+      } catch (err) {
+        console.warn('BroadcastChannel error:', err);
+      }
     }
 
-    setStatus('connecting');
-    const normalizedRoom = roomCode.toUpperCase().trim();
-
-    // 1. Initialize channel
-    const channel = supabase.channel(`room:${normalizedRoom}`, {
-      config: {
-        broadcast: { self: false }, // Avoid receiving own broadcasts
-        presence: { key: clientIdRef.current },
-      },
-    });
-
-    // 2. Set up Presence listeners (tracks connected guest phones)
-    channel.on('presence', { event: 'sync' }, () => {
-      const state = channel.presenceState();
-      // Count all connected users excluding the TV host
-      const remotes = Object.values(state)
-        .flat()
-        .filter((presence: any) => presence.key !== 'host');
-      setOnlineCount(remotes.length);
-    });
-
-    channel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
-      console.log(`🟢 [Room ${normalizedRoom}] User joined:`, key, newPresences);
-    });
-
-    channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-      console.log(`🔴 [Room ${normalizedRoom}] User left:`, key, leftPresences);
-    });
-
-    // 3. Set up Broadcast listener
-    channel.on('broadcast', { event: '*' }, (eventPayload) => {
-      const message: RoomBroadcastMessage = {
-        event: eventPayload.event,
-        payload: eventPayload.payload,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      setRecentEvents((prev) => [message, ...prev.slice(0, 19)]); // Keep last 20 events
+    // 2. Storage event listener to keep queue items in sync across local tabs
+    const handleLocalQueueChange = () => {
       if (onBroadcastRef.current) {
-        onBroadcastRef.current(eventPayload.event, eventPayload.payload);
+        onBroadcastRef.current('queue:updated', {});
       }
-    });
+    };
+    window.addEventListener('videoke_queue_change', handleLocalQueueChange);
 
-    // 4. Subscribe to the channel
-    channel.subscribe(async (subscribeStatus) => {
-      if (subscribeStatus === 'SUBSCRIBED') {
-        setStatus('connected');
-        // Track presence after joining
-        await channel.track({
-          role: isHost ? 'host' : 'remote',
-          joinedAt: new Date().toISOString(),
-        });
-      } else if (subscribeStatus === 'CHANNEL_ERROR' || subscribeStatus === 'TIMED_OUT') {
-        setStatus('disconnected');
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && e.key.includes(normalizedRoom)) {
+        handleLocalQueueChange();
       }
-    });
+    };
+    window.addEventListener('storage', handleStorageChange);
 
-    channelRef.current = channel;
+    // 3. Fallback timer: If Supabase takes longer than 2.0s or fails, mark connected (Local/P2P mode)
+    const fallbackTimer = setTimeout(() => {
+      setStatus('connected');
+      if (isHost) setOnlineCount((c) => Math.max(1, c));
+      else setOnlineCount(1);
+    }, 2000);
+
+    // If Supabase is not configured, resolve to offline mode immediately
+    if (!isSupabaseConfigured) {
+      clearTimeout(fallbackTimer);
+      setStatus('offline_demo');
+      setOnlineCount(1);
+      return () => {
+        window.removeEventListener('videoke_queue_change', handleLocalQueueChange);
+        window.removeEventListener('storage', handleStorageChange);
+        if (bc) bc.close();
+      };
+    }
+
+    // 4. Initialize Supabase channel
+    try {
+      const channel = supabase.channel(`room:${normalizedRoom}`, {
+        config: {
+          broadcast: { self: false },
+          presence: { key: clientIdRef.current },
+        },
+      });
+
+      channel.on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const remotes = Object.values(state)
+          .flat()
+          .filter((presence: any) => presence.key !== 'host');
+        setOnlineCount(remotes.length);
+      });
+
+      channel.on('broadcast', { event: '*' }, (eventPayload) => {
+        const msgId = eventPayload.payload?.msgId;
+        if (msgId && processedMsgIdsRef.current.has(msgId)) return;
+        if (msgId) {
+          processedMsgIdsRef.current.add(msgId);
+          if (processedMsgIdsRef.current.size > 200) {
+            processedMsgIdsRef.current.clear();
+          }
+        }
+
+        const message: RoomBroadcastMessage = {
+          event: eventPayload.event,
+          payload: eventPayload.payload,
+          timestamp: new Date().toLocaleTimeString(),
+        };
+        setRecentEvents((prev) => [message, ...prev.slice(0, 19)]);
+        if (onBroadcastRef.current) {
+          onBroadcastRef.current(eventPayload.event, eventPayload.payload);
+        }
+      });
+
+      channel.subscribe(async (subscribeStatus) => {
+        clearTimeout(fallbackTimer);
+        if (subscribeStatus === 'SUBSCRIBED') {
+          setStatus('connected');
+          try {
+            await channel.track({
+              role: isHost ? 'host' : 'remote',
+              joinedAt: new Date().toISOString(),
+            });
+          } catch {}
+        } else if (subscribeStatus === 'CHANNEL_ERROR' || subscribeStatus === 'TIMED_OUT') {
+          // If Supabase cloud is unreachable, keep status 'connected' via local channel
+          setStatus('connected');
+        }
+      });
+
+      channelRef.current = channel;
+    } catch {
+      setStatus('connected');
+    }
 
     // 5. Cleanup on unmount
     return () => {
+      clearTimeout(fallbackTimer);
+      window.removeEventListener('videoke_queue_change', handleLocalQueueChange);
+      window.removeEventListener('storage', handleStorageChange);
+      if (bcRef.current) {
+        bcRef.current.close();
+        bcRef.current = null;
+      }
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
@@ -108,32 +200,45 @@ export function useRoomChannel(
   }, [roomCode, isHost]);
 
   // Dispatch a broadcast event to all other clients in the room
-  const sendBroadcast = useCallback(
-    async (event: string, payload: any) => {
-      if (status === 'offline_demo') {
-        // In demo mode, simulate event locally
-        const message: RoomBroadcastMessage = {
+  const sendBroadcast = useCallback(async (event: string, payload: any) => {
+    const msgId = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    processedMsgIdsRef.current.add(msgId);
+
+    const message: RoomBroadcastMessage = {
+      event,
+      payload,
+      senderId: clientIdRef.current,
+      timestamp: new Date().toLocaleTimeString(),
+    };
+    setRecentEvents((prev) => [message, ...prev.slice(0, 19)]);
+
+    // 1. Post to local BroadcastChannel (instant cross-tab communication)
+    if (bcRef.current) {
+      try {
+        bcRef.current.postMessage({
           event,
           payload,
-          timestamp: new Date().toLocaleTimeString(),
-        };
-        setRecentEvents((prev) => [message, ...prev.slice(0, 19)]);
-        return;
+          senderId: clientIdRef.current,
+          msgId,
+        });
+      } catch (err) {
+        console.warn('Error posting to BroadcastChannel:', err);
       }
+    }
 
-      if (!channelRef.current) {
-        console.warn('Cannot send broadcast: Channel is not initialized.');
-        return;
+    // 2. Post to Supabase Realtime channel if subscribed
+    if (channelRef.current) {
+      try {
+        await channelRef.current.send({
+          type: 'broadcast',
+          event,
+          payload: { ...payload, msgId, senderId: clientIdRef.current },
+        });
+      } catch {
+        // Silently fallback to local broadcast
       }
-
-      await channelRef.current.send({
-        type: 'broadcast',
-        event,
-        payload,
-      });
-    },
-    [status]
-  );
+    }
+  }, []);
 
   return {
     status,

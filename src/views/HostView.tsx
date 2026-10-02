@@ -38,7 +38,6 @@ export default function HostView() {
   });
   const [copied, setCopied] = useState(false);
   const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [currentMillisecond, setCurrentMillisecond] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playerMode, setPlayerMode] = useState<'video' | 'retro'>('video');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -104,7 +103,6 @@ export default function HostView() {
     if (!currentTrack) return;
     try {
       await completeSongInQueue(currentTrack.id);
-      setCurrentMillisecond(0);
       setKeyOffset(0);
       clearPitchHistory();
       await fetchQueue();
@@ -236,10 +234,6 @@ export default function HostView() {
     };
   }, [roomCode, fetchQueue]);
 
-  const handleTimeUpdate = useCallback((ms: number) => {
-    setCurrentMillisecond(ms);
-  }, []);
-
   const handleStateChange = useCallback((state: number) => {
     setIsPlaying(state === 1);
   }, []);
@@ -289,18 +283,18 @@ export default function HostView() {
                   ref={playerRef}
                   videoId={currentTrack.song.youtube_id}
                   mode={playerMode}
-                  onTimeUpdate={handleTimeUpdate}
                   onStateChange={handleStateChange}
                   onEnded={handleSongFinished}
                 />
 
-                {/* Real-time Synchronized LRC Lyrics Display */}
+                {/* Sleek Auto-Fading Stage Banner */}
                 <LyricsOverlay
-                  lrcContent={currentTrack.song.lrc_content}
-                  currentMillisecond={currentMillisecond}
                   songTitle={currentTrack.song.title}
                   artist={currentTrack.song.artist}
                   singerName={currentTrack.singer_name}
+                  code={currentTrack.song.code}
+                  isPlaying={isPlaying}
+                  lrcContent={currentTrack.song.lrc_content}
                 />
               </div>
             ) : (
