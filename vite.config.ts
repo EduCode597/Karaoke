@@ -8,4 +8,17 @@ export default defineConfig({
     port: 5173,
     host: true, // Expose to local network so phones can access via Wi-Fi IP
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-ui': ['lucide-react', 'qrcode.react', 'clsx', 'tailwind-merge'],
+          'vendor-audio': ['pitchfinder'],
+        },
+      },
+    },
+  },
 });
