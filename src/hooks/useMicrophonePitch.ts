@@ -27,14 +27,19 @@ export function useMicrophonePitch() {
         return false;
       }
 
-      // 1. Request microphone access with raw musical audio constraints
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+      // 1. Request microphone access with raw musical audio constraints, with graceful fallback
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
 
       mediaStreamRef.current = stream;
       setMicPermission('granted');

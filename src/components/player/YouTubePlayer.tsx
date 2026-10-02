@@ -68,22 +68,28 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
       []
     );
 
-    // High-precision requestAnimationFrame sync loop
+    // Optional time sync loop - only runs if onTimeUpdate listener is provided
     useEffect(() => {
+      if (!onTimeUpdate) return;
       let isSubscribed = true;
+      let lastUpdate = 0;
 
       const syncLoop = () => {
         if (!isSubscribed) return;
 
-        if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
-          try {
-            const timeSec = playerRef.current.getCurrentTime();
-            if (typeof timeSec === 'number' && !isNaN(timeSec)) {
-              const ms = Math.floor(timeSec * 1000);
-              onTimeUpdateRef.current?.(ms);
+        const now = Date.now();
+        if (now - lastUpdate >= 100) {
+          lastUpdate = now;
+          if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+            try {
+              const timeSec = playerRef.current.getCurrentTime();
+              if (typeof timeSec === 'number' && !isNaN(timeSec)) {
+                const ms = Math.floor(timeSec * 1000);
+                onTimeUpdateRef.current?.(ms);
+              }
+            } catch {
+              // Player might be unmounting or in transition
             }
-          } catch {
-            // Player might be unmounting or in transition
           }
         }
 
@@ -101,7 +107,7 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
         isSubscribed = false;
         if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       };
-    }, [playerState]);
+    }, [playerState, onTimeUpdate]);
 
     // Initialize or re-cue player ONLY when isLoaded or videoId changes
     useEffect(() => {
