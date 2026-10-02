@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Award, Music, Sparkles, X, ArrowRight, User } from 'lucide-react';
+import { Award, Music, Sparkles, X, ArrowRight, User, MicOff } from 'lucide-react';
 import type { VideokeScoreResult } from '../../utils/scoring';
 import { playScoreTick, playScoreFanfare } from '../../utils/sfx';
 
@@ -169,6 +169,17 @@ export default function ScoreModal({
             </span>
           </div>
         </div>
+
+        {/* Mic Standby Notice if 0 vocal samples were captured */}
+        {result.stats.activeSamples === 0 && (
+          <div className="w-full p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs font-mono flex items-center justify-center gap-2.5 shadow-sm">
+            <MicOff className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+            <span className="text-center">
+              <strong>Microphone was on Standby:</strong> Click <strong>"Enable Mic"</strong> on the
+              TV screen before singing to track live pitch!
+            </span>
+          </div>
+        )}
 
         {/* Bottom Action & Countdown Bar */}
         <div className="flex items-center justify-between w-full pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
