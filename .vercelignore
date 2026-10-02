@@ -1,0 +1,8 @@
+# Vercel deployment ignore rules
+SPRINT-PLAN.md
+KARAOKE-VIDEO-SYNC-PLAN.md
+sprint/
+scripts/
+.agents/
+.husky/
+.vscode/
