@@ -168,11 +168,14 @@ export default function RemoteView() {
     if (!selectedSong || !activeRoom) return;
     setReserving(true);
     try {
-      await addSongToQueue(activeRoom, selectedSong.id, singerName);
+      const queuedItem = await addSongToQueue(activeRoom, selectedSong.id, singerName);
+      const currentQueue = await getRoomQueue(activeRoom);
       await sendBroadcast('queue:updated', {
         room: activeRoom,
         songTitle: selectedSong.title,
         singer: singerName,
+        item: queuedItem,
+        queue: currentQueue,
       });
 
       triggerHaptic([30, 50, 30]);
@@ -421,8 +424,8 @@ export default function RemoteView() {
           <QueueTab
             roomCode={activeRoom}
             onNavigateToSongbook={() => setActiveTab('songbook')}
-            broadcastQueueUpdated={() => {
-              sendBroadcast('queue:updated', { room: activeRoom });
+            broadcastQueueUpdated={(updatedQueue) => {
+              sendBroadcast('queue:updated', { room: activeRoom, queue: updatedQueue });
               refreshQueueCount();
             }}
           />

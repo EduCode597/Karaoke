@@ -108,6 +108,36 @@ export async function getSongByCode(code: string): Promise<Song | null> {
 }
 
 /**
+ * Hydrate a queue item with its complete song object from FALLBACK_SONGS if missing
+ */
+export function hydrateQueueItem(item: QueueItem): QueueItem {
+  if (item.song && item.song.youtube_id) {
+    return item;
+  }
+  const found = FALLBACK_SONGS.find(
+    (s) => s.id === item.song_id || (item.song && s.code === item.song.code)
+  );
+  if (found) {
+    return {
+      ...item,
+      song: found,
+    };
+  }
+  return item;
+}
+
+/**
+ * Update local storage queue cache and broadcast local change
+ */
+export function setLocalQueue(roomCode: string, items: QueueItem[]): void {
+  try {
+    const hydrated = items.map(hydrateQueueItem);
+    localStorage.setItem(`videoke_queue_${roomCode}`, JSON.stringify(hydrated));
+    window.dispatchEvent(new Event('videoke_queue_change'));
+  } catch {}
+}
+
+/**
  * Fetch active queue for a room with joined song details.
  * Local storage is checked and used as fallback if Supabase is slow or unavailable.
  */
@@ -115,7 +145,9 @@ export async function getRoomQueue(roomCode: string): Promise<QueueItem[]> {
   const getLocal = (): QueueItem[] => {
     try {
       const q = JSON.parse(localStorage.getItem(`videoke_queue_${roomCode}`) || '[]');
-      return q.filter((item: QueueItem) => item.status === 'queued' || item.status === 'playing');
+      return q
+        .filter((item: QueueItem) => item.status === 'queued' || item.status === 'playing')
+        .map(hydrateQueueItem);
     } catch {
       return [];
     }
@@ -139,11 +171,15 @@ export async function getRoomQueue(roomCode: string): Promise<QueueItem[]> {
       if (error || !data || data.length === 0) {
         return localQueue;
       }
-      return (data as any) || [];
+      const hydrated = (data as QueueItem[]).map(hydrateQueueItem);
+      try {
+        localStorage.setItem(`videoke_queue_${roomCode}`, JSON.stringify(hydrated));
+      } catch {}
+      return hydrated;
     };
 
     const timeout = new Promise<QueueItem[]>((_, reject) =>
-      setTimeout(() => reject(new Error('Queue fetch timeout')), 1000)
+      setTimeout(() => reject(new Error('Queue fetch timeout')), 1800)
     );
 
     return await Promise.race([fetchSupabaseQueue(), timeout]);
@@ -190,7 +226,7 @@ export async function addSongToQueue(
     return localItem;
   }
 
-  // Attempt Supabase insert in background / race with 1200ms timeout
+  // Attempt Supabase insert in background / race with 1800ms timeout
   try {
     const supabaseInsert = async (): Promise<QueueItem> => {
       const { data: existing }: { data: any } = await supabase
@@ -216,11 +252,11 @@ export async function addSongToQueue(
       if (error || !data) {
         return localItem;
       }
-      return data as any;
+      return hydrateQueueItem(data as QueueItem);
     };
 
     const timeout = new Promise<QueueItem>((_, reject) =>
-      setTimeout(() => reject(new Error('Supabase insert timeout')), 1200)
+      setTimeout(() => reject(new Error('Supabase insert timeout')), 1800)
     );
 
     return await Promise.race([supabaseInsert(), timeout]);

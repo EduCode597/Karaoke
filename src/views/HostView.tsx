@@ -22,7 +22,7 @@ import {
 import { generateRoomCode, getStoredRoomCode, setStoredRoomCode } from '../utils/room';
 import { useRoomChannel } from '../hooks/useRoomChannel';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { getRoomQueue, completeSongInQueue } from '../lib/songs';
+import { getRoomQueue, completeSongInQueue, hydrateQueueItem, setLocalQueue } from '../lib/songs';
 import type { QueueItem } from '../types/song';
 
 import YouTubePlayer, { YouTubePlayerHandle } from '../components/player/YouTubePlayer';
@@ -115,6 +115,15 @@ export default function HostView() {
 
   const currentTrack = queue[0] || null;
 
+  const queueRef = useRef(queue);
+  queueRef.current = queue;
+
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+
+  const keyOffsetRef = useRef(keyOffset);
+  keyOffsetRef.current = keyOffset;
+
   // Advance to next song
   const handleAdvanceQueue = useCallback(async () => {
     if (!currentTrack) return;
@@ -122,11 +131,19 @@ export default function HostView() {
       await completeSongInQueue(currentTrack.id);
       setKeyOffset(0);
       clearPitchHistory();
+      const updatedQueue = queue.slice(1);
+      setQueue(updatedQueue);
+      setLocalQueue(roomCode, updatedQueue);
+      sendBroadcastRef.current?.('queue:updated', {
+        room: roomCode,
+        action: 'advance',
+        queue: updatedQueue,
+      });
       await fetchQueue();
     } catch (err) {
       console.error('Error advancing queue:', err);
     }
-  }, [currentTrack, clearPitchHistory, fetchQueue]);
+  }, [currentTrack, clearPitchHistory, fetchQueue, queue, roomCode]);
 
   // Visual cheer trigger
   const triggerCheer = useCallback((text = '🎉 WOO HOO! 🎉') => {
@@ -201,8 +218,11 @@ export default function HostView() {
       } else if (event === 'player:sync') {
         if (typeof payload?.time === 'number') {
           const local = playerRef.current?.getCurrentTime() || 0;
-          if (Math.abs(local - payload.time) > 2.0) {
+          if (Math.abs(local - payload.time) > 1.8) {
             playerRef.current?.seekTo(payload.time);
+          }
+          if (payload.isPlaying && !isPlayingRef.current) {
+            playerRef.current?.play();
           }
         }
       } else if (event === 'party:score_reveal') {
@@ -247,10 +267,51 @@ export default function HostView() {
           `🎵 KEY TRANSPOSE: ${clamped > 0 ? `+${clamped}` : clamped === 0 ? 'ORIGINAL' : clamped}`
         );
       } else if (event === 'queue:updated') {
+        if (payload?.queue && Array.isArray(payload.queue)) {
+          const hydrated = payload.queue.map(hydrateQueueItem);
+          setQueue(hydrated);
+          setLocalQueue(roomCode, hydrated);
+        } else if (payload?.item) {
+          const hydratedItem = hydrateQueueItem(payload.item);
+          setQueue((prev) => {
+            if (prev.some((it) => it.id === hydratedItem.id)) return prev;
+            const next = [...prev, hydratedItem];
+            setLocalQueue(roomCode, next);
+            return next;
+          });
+        }
         fetchQueue();
+      } else if (event === 'room:request_state') {
+        if (queueRef.current.length > 0) {
+          const time = playerRef.current?.getCurrentTime?.() || 0;
+          sendBroadcastRef.current?.('room:state', {
+            room: roomCode,
+            queue: queueRef.current,
+            time,
+            isPlaying: isPlayingRef.current,
+            keyOffset: keyOffsetRef.current,
+          });
+        }
+      } else if (event === 'room:state') {
+        if (payload?.queue && Array.isArray(payload.queue) && payload.queue.length > 0) {
+          const hydrated = payload.queue.map(hydrateQueueItem);
+          setQueue(hydrated);
+          setLocalQueue(roomCode, hydrated);
+        }
+        if (typeof payload?.keyOffset === 'number') {
+          setKeyOffset(payload.keyOffset);
+        }
+        if (typeof payload?.time === 'number' && payload.time > 0) {
+          setTimeout(() => {
+            playerRef.current?.seekTo(payload.time);
+            if (payload?.isPlaying) {
+              playerRef.current?.play();
+            }
+          }, 600);
+        }
       }
     },
-    [handleSongFinished, triggerCheer, fetchQueue]
+    [handleSongFinished, triggerCheer, fetchQueue, roomCode]
   );
 
   const { status, onlineCount, recentEvents, sendBroadcast } = useRoomChannel(
@@ -265,7 +326,14 @@ export default function HostView() {
   useEffect(() => {
     fetchQueue();
 
-    if (!isSupabaseConfigured || !roomCode) return;
+    // Request initial room state from existing host screens
+    const stateReqTimer = setTimeout(() => {
+      sendBroadcastRef.current?.('room:request_state', { room: roomCode });
+    }, 600);
+
+    if (!isSupabaseConfigured || !roomCode) {
+      return () => clearTimeout(stateReqTimer);
+    }
 
     // Realtime Postgres Changes Subscription for TV Queue
     const channel = supabase
@@ -285,6 +353,7 @@ export default function HostView() {
       .subscribe();
 
     return () => {
+      clearTimeout(stateReqTimer);
       supabase.removeChannel(channel);
     };
   }, [roomCode, fetchQueue]);
@@ -293,15 +362,15 @@ export default function HostView() {
     setIsPlaying(state === 1);
   }, []);
 
-  // Periodic playback sync broadcast across connected screens (every 4s while playing)
+  // Periodic playback sync broadcast across connected screens (every 3s while playing)
   useEffect(() => {
     if (!isPlaying) return;
     const interval = setInterval(() => {
       const time = playerRef.current?.getCurrentTime?.();
       if (typeof time === 'number' && time > 0) {
-        sendBroadcastRef.current?.('player:sync', { time });
+        sendBroadcastRef.current?.('player:sync', { time, isPlaying: true });
       }
-    }, 4000);
+    }, 3000);
     return () => clearInterval(interval);
   }, [isPlaying]);
 

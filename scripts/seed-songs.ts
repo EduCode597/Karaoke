@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
-import songsData from './scraped-songs-ordered.json';
+import songsData from '../src/data/songs.json';
 
 // Simple inline .env loader
 if (fs.existsSync('.env')) {
@@ -27,7 +27,8 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-interface ScrapedSong {
+interface SongRecord {
+  id: number;
   code: string;
   title: string;
   artist: string;
@@ -35,10 +36,11 @@ interface ScrapedSong {
   youtube_id: string;
   duration: number;
   key_offset: number;
+  lrc_content?: string | null;
 }
 
 async function seed() {
-  const songs = songsData as ScrapedSong[];
+  const songs = songsData as SongRecord[];
   console.log(`🚀 Seeding ${songs.length} verified videoke tracks to Supabase...`);
 
   const batchSize = 50;
@@ -46,6 +48,7 @@ async function seed() {
 
   for (let i = 0; i < songs.length; i += batchSize) {
     const batch = songs.slice(i, i + batchSize).map((s) => ({
+      id: s.id,
       code: s.code,
       title: s.title,
       artist: s.artist,
@@ -53,11 +56,10 @@ async function seed() {
       youtube_id: s.youtube_id,
       duration: s.duration,
       key_offset: s.key_offset || 0,
-      lrc_content: null,
-      search_tokens: `${s.title.toLowerCase()} ${s.artist.toLowerCase()} ${s.code}`,
+      lrc_content: s.lrc_content || null,
     }));
 
-    const { error } = await supabase.from('songs').upsert(batch, { onConflict: 'code' });
+    const { error } = await supabase.from('songs').upsert(batch, { onConflict: 'id' });
 
     if (error) {
       console.error(`❌ Batch error (${i} to ${i + batch.length}):`, error.message);

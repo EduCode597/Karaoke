@@ -7,7 +7,7 @@ import type { QueueItem } from '../../types/song';
 interface QueueTabProps {
   roomCode: string;
   onNavigateToSongbook: () => void;
-  broadcastQueueUpdated?: () => void;
+  broadcastQueueUpdated?: (updatedQueue?: QueueItem[]) => void;
 }
 
 export default function QueueTab({
@@ -62,8 +62,10 @@ export default function QueueTab({
     setActionInProgress(id);
     try {
       await removeSongFromQueue(id);
+      const updated = queue.filter((item) => item.id !== id);
+      setQueue(updated);
+      if (broadcastQueueUpdated) broadcastQueueUpdated(updated);
       await fetchQueue();
-      if (broadcastQueueUpdated) broadcastQueueUpdated();
     } finally {
       setActionInProgress(null);
     }
@@ -73,8 +75,9 @@ export default function QueueTab({
     setActionInProgress(id);
     try {
       await moveSongToTop(roomCode, id);
-      await fetchQueue();
-      if (broadcastQueueUpdated) broadcastQueueUpdated();
+      const items = await getRoomQueue(roomCode);
+      setQueue(items);
+      if (broadcastQueueUpdated) broadcastQueueUpdated(items);
     } finally {
       setActionInProgress(null);
     }
