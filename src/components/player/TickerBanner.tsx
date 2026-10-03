@@ -10,6 +10,7 @@ import {
   Smartphone,
   ExternalLink,
   Clock,
+  Share2,
 } from 'lucide-react';
 import type { QueueItem } from '../../types/song';
 
@@ -22,6 +23,9 @@ interface TickerBannerProps {
   onCopyLink: () => void;
   copied: boolean;
   remoteJoinUrl: string;
+  onCopyScreenLink?: () => void;
+  copiedScreen?: boolean;
+  screenJoinUrl?: string;
 }
 
 export default function TickerBanner({
@@ -33,6 +37,8 @@ export default function TickerBanner({
   onCopyLink,
   copied,
   remoteJoinUrl,
+  onCopyScreenLink,
+  copiedScreen,
 }: TickerBannerProps) {
   // Live Digital Clock with blinking colon
   const [time, setTime] = useState<string>('');
@@ -140,14 +146,30 @@ export default function TickerBanner({
             </span>
           </div>
 
-          {/* Copy Link Button */}
+          {/* Share Screen Link Button */}
+          {onCopyScreenLink && (
+            <button
+              onClick={onCopyScreenLink}
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl bg-fuchsia-950/80 border border-fuchsia-500/40 hover:bg-fuchsia-900 text-xs sm:text-sm font-mono text-fuchsia-300 font-bold transition-colors touch-manipulation min-h-[44px] shadow-sm"
+              title="Copy Screen Link to share with friends to sing together on the same screen"
+            >
+              {copiedScreen ? (
+                <Check className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <Share2 className="w-4 h-4 text-fuchsia-400" />
+              )}
+              <span>{copiedScreen ? 'Screen Link Copied!' : 'Share Screen'}</span>
+            </button>
+          )}
+
+          {/* Copy Remote Link Button */}
           <button
             onClick={onCopyLink}
             className="flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs sm:text-sm font-mono text-slate-200 transition-colors touch-manipulation min-h-[44px]"
             title="Copy remote link to clipboard"
           >
             {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            <span>{copied ? 'Copied!' : 'Copy'}</span>
+            <span>{copied ? 'Remote Copied!' : 'Copy Remote'}</span>
           </button>
 
           {/* Open Mobile Remote Link */}

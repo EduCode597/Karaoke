@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Smartphone,
@@ -16,6 +17,7 @@ import {
   Film,
   Maximize,
   Minimize,
+  Share2,
 } from 'lucide-react';
 import { generateRoomCode, getStoredRoomCode, setStoredRoomCode } from '../utils/room';
 import { useRoomChannel } from '../hooks/useRoomChannel';
@@ -33,10 +35,14 @@ import { calculateVideokeScore, VideokeScoreResult } from '../utils/scoring';
 import { playSoundEffect } from '../utils/soundEffects';
 
 export default function HostView() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const roomParam = searchParams.get('room')?.toUpperCase().trim();
+
   const [roomCode, setRoomCode] = useState<string>(() => {
-    return getStoredRoomCode() || generateRoomCode();
+    return roomParam || getStoredRoomCode() || generateRoomCode();
   });
   const [copied, setCopied] = useState(false);
+  const [copiedScreen, setCopiedScreen] = useState(false);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playerMode, setPlayerMode] = useState<'video' | 'retro'>('video');
@@ -67,12 +73,16 @@ export default function HostView() {
     getPitchSamples,
   } = useMicrophonePitch();
 
-  // Keep room code persisted in session
+  // Keep room code persisted in session & URL
   useEffect(() => {
     setStoredRoomCode(roomCode);
-  }, [roomCode]);
+    if (searchParams.get('room')?.toUpperCase() !== roomCode) {
+      setSearchParams({ room: roomCode }, { replace: true });
+    }
+  }, [roomCode, searchParams, setSearchParams]);
 
   const remoteJoinUrl = `${window.location.origin}/remote?room=${roomCode}`;
+  const screenJoinUrl = `${window.location.origin}/host?room=${roomCode}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(remoteJoinUrl);
@@ -80,9 +90,16 @@ export default function HostView() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleCopyScreenLink = () => {
+    navigator.clipboard.writeText(screenJoinUrl);
+    setCopiedScreen(true);
+    setTimeout(() => setCopiedScreen(false), 2000);
+  };
+
   const handleRegenerateRoom = () => {
     const newCode = generateRoomCode();
     setRoomCode(newCode);
+    setSearchParams({ room: newCode });
   };
 
   // Sync Queue from Supabase
@@ -142,11 +159,9 @@ export default function HostView() {
     });
     setIsScoreModalOpen(true);
 
-    // Broadcast score to remote phones
+    // Broadcast score to remote phones and connected screens
     sendBroadcastRef.current?.('party:score_reveal', {
-      score: scoreResult.score,
-      tier: scoreResult.tier,
-      commentary: scoreResult.commentary,
+      result: scoreResult,
       singer: currentTrack.singer_name || 'Guest',
       songTitle: currentTrack.song?.title || 'Song',
     });
@@ -156,23 +171,63 @@ export default function HostView() {
   const handleScoreDismissed = async () => {
     setIsScoreModalOpen(false);
     setScoreData(null);
+    sendBroadcastRef.current?.('party:score_dismiss', {});
     await handleAdvanceQueue();
   };
 
-  // Broadcast Handler for Mobile Remote commands
+  // Broadcast Handler for Mobile Remote & Synced Host Screens
   const handleBroadcast = useCallback(
     (event: string, payload: any) => {
       if (event === 'player:action') {
         const action = payload?.action;
         if (action === 'play') {
           playerRef.current?.play();
+          if (typeof payload?.time === 'number') {
+            const local = playerRef.current?.getCurrentTime() || 0;
+            if (Math.abs(local - payload.time) > 1.5) {
+              playerRef.current?.seekTo(payload.time);
+            }
+          }
         } else if (action === 'pause') {
           playerRef.current?.pause();
+          if (typeof payload?.time === 'number') {
+            playerRef.current?.seekTo(payload.time);
+          }
         } else if (action === 'skip') {
           handleSongFinished();
         } else if (action === 'replay') {
           playerRef.current?.replay();
         }
+      } else if (event === 'player:sync') {
+        if (typeof payload?.time === 'number') {
+          const local = playerRef.current?.getCurrentTime() || 0;
+          if (Math.abs(local - payload.time) > 2.0) {
+            playerRef.current?.seekTo(payload.time);
+          }
+        }
+      } else if (event === 'party:score_reveal') {
+        const result: VideokeScoreResult = payload?.result || {
+          score: payload?.score || 88,
+          tier: payload?.tier || 'concert',
+          commentary: payload?.commentary || 'Awesome singing!',
+          subtext: 'Boses Pang-Concert!',
+          stats: {
+            totalSamples: 100,
+            activeSamples: 85,
+            singingRatio: 0.85,
+            pitchStability: 85,
+          },
+        };
+        setScoreData({
+          result,
+          singer: payload?.singer || 'Guest',
+          songTitle: payload?.songTitle || 'Song',
+        });
+        setIsScoreModalOpen(true);
+      } else if (event === 'party:score_dismiss') {
+        setIsScoreModalOpen(false);
+        setScoreData(null);
+        fetchQueue();
       } else if (event === 'party:sfx') {
         const sfxType = payload?.sfxType || 'airhorn';
         playSoundEffect(sfxType);
@@ -238,6 +293,18 @@ export default function HostView() {
     setIsPlaying(state === 1);
   }, []);
 
+  // Periodic playback sync broadcast across connected screens (every 4s while playing)
+  useEffect(() => {
+    if (!isPlaying) return;
+    const interval = setInterval(() => {
+      const time = playerRef.current?.getCurrentTime?.();
+      if (typeof time === 'number' && time > 0) {
+        sendBroadcastRef.current?.('player:sync', { time });
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [isPlaying]);
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       stageContainerRef.current?.requestFullscreen?.();
@@ -268,6 +335,9 @@ export default function HostView() {
         onCopyLink={handleCopyLink}
         copied={copied}
         remoteJoinUrl={remoteJoinUrl}
+        onCopyScreenLink={handleCopyScreenLink}
+        copiedScreen={copiedScreen}
+        screenJoinUrl={screenJoinUrl}
       />
 
       {/* Main TV Layout */}
@@ -351,10 +421,13 @@ export default function HostView() {
               <div className="flex items-center gap-2 sm:gap-2.5">
                 <button
                   onClick={() => {
+                    const time = playerRef.current?.getCurrentTime?.() || 0;
                     if (isPlaying) {
                       playerRef.current?.pause();
+                      sendBroadcastRef.current?.('player:action', { action: 'pause', time });
                     } else {
                       playerRef.current?.play();
+                      sendBroadcastRef.current?.('player:action', { action: 'play', time });
                     }
                   }}
                   className={`py-2.5 px-4 sm:px-5 rounded-xl font-mono text-xs sm:text-sm font-bold flex items-center gap-2 active:scale-95 transition-all shadow-md touch-manipulation min-h-[44px] ${
@@ -386,7 +459,10 @@ export default function HostView() {
                 </button>
 
                 <button
-                  onClick={() => playerRef.current?.replay()}
+                  onClick={() => {
+                    playerRef.current?.replay();
+                    sendBroadcastRef.current?.('player:action', { action: 'replay' });
+                  }}
                   className="py-2.5 px-3.5 sm:px-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-fuchsia-500/50 hover:text-fuchsia-400 text-slate-300 font-mono text-xs sm:text-sm flex items-center gap-1.5 active:scale-95 transition-all touch-manipulation min-h-[44px]"
                   title="Replay track from beginning"
                 >
@@ -509,6 +585,27 @@ export default function HostView() {
                 includeMargin={false}
               />
             </div>
+          </div>
+
+          {/* Share Screen Link Card for Distant Friends */}
+          <div className="md:col-span-1 lg:col-span-1 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-fuchsia-950/60 to-slate-950 border border-fuchsia-500/40 shadow-xl flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-1 min-w-0">
+              <div className="flex items-center gap-2 text-fuchsia-400">
+                <Share2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                <h4 className="font-bold text-xs sm:text-sm tracking-wider uppercase">
+                  Singing with Distant Friends?
+                </h4>
+              </div>
+              <p className="text-[11px] sm:text-xs text-slate-400 font-mono leading-tight">
+                Send your friend this screen link so you watch & sing to the same screen together!
+              </p>
+            </div>
+            <button
+              onClick={handleCopyScreenLink}
+              className="px-3.5 py-2 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-mono font-bold text-xs flex items-center gap-1.5 transition-all shrink-0 active:scale-95 shadow-neon-magenta touch-manipulation min-h-[44px]"
+            >
+              {copiedScreen ? 'Link Copied!' : 'Copy Screen Link'}
+            </button>
           </div>
 
           {/* Live Party Queue Display */}

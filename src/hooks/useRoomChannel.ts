@@ -27,7 +27,9 @@ export function useRoomChannel(
   onBroadcastRef.current = onBroadcast;
 
   const clientIdRef = useRef<string>(
-    isHost ? 'host' : `remote-${Math.random().toString(36).substring(2, 8)}`
+    isHost
+      ? `screen-${Math.random().toString(36).substring(2, 8)}`
+      : `remote-${Math.random().toString(36).substring(2, 8)}`
   );
 
   useEffect(() => {
@@ -135,10 +137,8 @@ export function useRoomChannel(
 
       channel.on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
-        const remotes = Object.values(state)
-          .flat()
-          .filter((presence: any) => presence.key !== 'host');
-        setOnlineCount(remotes.length);
+        const total = Object.values(state).flat().length;
+        setOnlineCount(Math.max(1, total));
       });
 
       channel.on('broadcast', { event: '*' }, (eventPayload) => {
