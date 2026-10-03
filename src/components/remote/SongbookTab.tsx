@@ -9,9 +9,9 @@ interface SongbookTabProps {
 }
 
 const CATEGORIES = [
-  { id: 'All', label: '⭐ All Songs' },
-  { id: 'Tagalog', label: '🇵🇭 Tagalog / OPM' },
-  { id: 'English', label: '🌐 English' },
+  { id: 'All', label: '⭐ All Songs (523)' },
+  { id: 'Tagalog', label: '🇵🇭 Tagalog / OPM (106)' },
+  { id: 'English', label: '🌐 English (417)' },
 ] as const;
 
 export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: SongbookTabProps) {

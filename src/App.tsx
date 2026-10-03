@@ -189,6 +189,9 @@ function HomeDashboard() {
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <Music className="w-5 h-5 text-amber-400" />
                 <span>5-Digit Songbook Catalog</span>
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-amber-400 font-mono font-bold">
+                  {songs.length} Tracks
+                </span>
               </h2>
               <p className="text-xs text-slate-400 font-mono">
                 Search by 5-digit numeric code, track title, or artist name
@@ -197,17 +200,21 @@ function HomeDashboard() {
 
             {/* Language Category Chips */}
             <div className="flex items-center gap-2">
-              {(['All', 'Tagalog', 'English'] as const).map((lang) => (
+              {[
+                { id: 'All', label: '⭐ All (523)' },
+                { id: 'Tagalog', label: '🇵🇭 Tagalog (106)' },
+                { id: 'English', label: '🌐 English (417)' },
+              ].map((cat) => (
                 <button
-                  key={lang}
-                  onClick={() => setLanguage(lang)}
+                  key={cat.id}
+                  onClick={() => setLanguage(cat.id as any)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    language === lang
+                    language === cat.id
                       ? 'bg-amber-400 text-black shadow-neon-amber'
                       : 'bg-slate-800/80 text-slate-400 hover:text-white'
                   }`}
                 >
-                  {lang}
+                  {cat.label}
                 </button>
               ))}
             </div>
@@ -220,7 +227,7 @@ function HomeDashboard() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by 5-digit code (e.g. 01001) or title (e.g. Anak, El Bimbo)..."
+              placeholder="Search by 5-digit code (e.g. 01001) or title (e.g. El Bimbo, Torete)..."
               className="w-full pl-12 pr-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 text-slate-100 placeholder:text-slate-600 font-mono text-sm transition-all"
             />
           </div>

@@ -20,7 +20,7 @@ function searchFallbackSongs(searchTerm = '', language?: string): Song[] {
       return terms.every((t) => searchTarget.includes(t));
     });
   }
-  return results.slice(0, 100);
+  return results;
 }
 
 /**
@@ -52,8 +52,8 @@ export async function searchSongs(searchTerm = '', language?: string): Promise<S
         query = query.eq('language', language);
       }
 
-      const { data, error } = await query.order('title', { ascending: true }).limit(50);
-      if (error || !data || data.length === 0) {
+      const { data, error } = await query.order('title', { ascending: true }).limit(1000);
+      if (error || !data || data.length === 0 || data.length < localResults.length) {
         return localResults;
       }
       return data;
