@@ -122,57 +122,63 @@ function HomeDashboard() {
         </div>
 
         {/* Join Existing Room Section (Cross-Globe Multi-Screen Sync) */}
-        <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 shadow-xl flex flex-col md:flex-row items-center justify-between gap-5">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 rounded-xl bg-amber-400/10 border border-amber-400/30 text-amber-400 shrink-0 shadow-neon-amber">
+        <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-5 overflow-hidden">
+          {/* Left Info Column */}
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-amber-400/10 border border-amber-400/30 text-amber-400 flex items-center justify-center shrink-0 shadow-neon-amber">
               <Users className="w-6 h-6" />
             </div>
-            <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <span>Join a Friend's Room</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 font-mono font-normal">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base sm:text-lg font-bold text-white tracking-wide">
+                  Join a Friend's Room
+                </h2>
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-400 font-mono font-semibold whitespace-nowrap">
                   Live Global Sync
                 </span>
-              </h2>
-              <p className="text-xs text-slate-400 font-mono">
-                Sing together on the same screen or control the party from anywhere in the world
+              </div>
+              <p className="text-xs text-slate-400 font-mono mt-0.5">
+                Sing on the same screen or control from anywhere in the world
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto">
+          {/* Right Action Controls */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto shrink-0">
             <input
               type="text"
               value={joinRoomCode}
               onChange={(e) => setJoinRoomCode(e.target.value.toUpperCase())}
-              placeholder="e.g. KANTA-88"
+              placeholder="ROOM CODE"
               maxLength={10}
-              className="px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-amber-400 font-digital font-bold tracking-widest text-sm focus:border-amber-400 focus:outline-none w-full md:w-36 text-center uppercase shadow-inner"
+              className="px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-amber-400 font-digital font-bold tracking-widest text-sm focus:border-amber-400 focus:outline-none w-full sm:w-36 text-center uppercase shadow-inner min-h-[44px]"
             />
-            <button
-              onClick={() => {
-                if (joinRoomCode.trim()) {
-                  navigate(`/host?room=${joinRoomCode.trim().toUpperCase()}`);
-                }
-              }}
-              disabled={!joinRoomCode.trim()}
-              className="px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs sm:text-sm font-mono flex items-center gap-1.5 transition-all disabled:opacity-40 disabled:hover:bg-cyan-500 shrink-0 shadow-neon-cyan touch-manipulation min-h-[44px]"
-            >
-              <Tv className="w-4 h-4" />
-              <span>Join Screen</span>
-            </button>
-            <button
-              onClick={() => {
-                if (joinRoomCode.trim()) {
-                  navigate(`/remote?room=${joinRoomCode.trim().toUpperCase()}`);
-                }
-              }}
-              disabled={!joinRoomCode.trim()}
-              className="px-4 py-2.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold text-xs sm:text-sm font-mono flex items-center gap-1.5 transition-all disabled:opacity-40 disabled:hover:bg-fuchsia-600 shrink-0 shadow-neon-magenta touch-manipulation min-h-[44px]"
-            >
-              <Smartphone className="w-4 h-4" />
-              <span>Join Remote</span>
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  if (joinRoomCode.trim()) {
+                    navigate(`/host?room=${joinRoomCode.trim().toUpperCase()}`);
+                  }
+                }}
+                disabled={!joinRoomCode.trim()}
+                className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 active:scale-95 text-black font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 disabled:hover:bg-cyan-500 shadow-neon-cyan touch-manipulation min-h-[44px] whitespace-nowrap"
+              >
+                <Tv className="w-4 h-4 shrink-0" />
+                <span>Join Screen</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (joinRoomCode.trim()) {
+                    navigate(`/remote?room=${joinRoomCode.trim().toUpperCase()}`);
+                  }
+                }}
+                disabled={!joinRoomCode.trim()}
+                className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 disabled:hover:bg-fuchsia-600 shadow-neon-magenta touch-manipulation min-h-[44px] whitespace-nowrap"
+              >
+                <Smartphone className="w-4 h-4 shrink-0" />
+                <span>Join Remote</span>
+              </button>
+            </div>
           </div>
         </div>
 
