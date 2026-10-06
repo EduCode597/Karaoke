@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Award, Music, Sparkles, X, ArrowRight, User, MicOff } from 'lucide-react';
 import type { VideokeScoreResult } from '../../utils/scoring';
-import { playScoreTick, playScoreFanfare } from '../../utils/sfx';
+import { playScoreTick, playScoreFanfare } from '../../utils/soundEffects';
 
 interface ScoreModalProps {
   isOpen: boolean;
@@ -24,6 +24,18 @@ export default function ScoreModal({
   const [isRolling, setIsRolling] = useState(false);
   const [countdown, setCountdown] = useState(autoDismissSeconds);
   const fanfarePlayedRef = useRef(false);
+
+  // Keyboard accessibility: Dismiss modal on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (!isOpen || !result) {
@@ -90,7 +102,12 @@ export default function ScoreModal({
   if (!isOpen || !result) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in crt-overlay">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="score-modal-title"
+      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in crt-overlay"
+    >
       {/* Ambient Pulsing Glow Background */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-fuchsia-950/40 via-cyan-950/30 to-black pointer-events-none" />
 
@@ -101,12 +118,16 @@ export default function ScoreModal({
           onClick={onClose}
           className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors"
           title="Dismiss Score"
+          aria-label="Dismiss score modal"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Top Header Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-400 text-xs font-mono font-bold uppercase tracking-widest shadow-neon-amber">
+        <div
+          id="score-modal-title"
+          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-400 text-xs font-mono font-bold uppercase tracking-widest shadow-neon-amber"
+        >
           <Sparkles className="w-3.5 h-3.5 animate-spin" />
           <span>PinoyVideoke Official Score</span>
           <Sparkles className="w-3.5 h-3.5 animate-spin" />
@@ -186,10 +207,9 @@ export default function ScoreModal({
           <span>Auto-advancing in {countdown}s...</span>
           <button
             onClick={onClose}
-            disabled={isRolling}
             className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:opacity-90 active:scale-95 text-black font-black uppercase tracking-wider flex items-center gap-2 shadow-neon-cyan transition-all"
           >
-            <span>Next Song</span>
+            <span>{isRolling ? 'Skip Animation' : 'Next Song'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
