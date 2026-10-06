@@ -12,7 +12,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { useRoomChannel } from '../hooks/useRoomChannel';
-import { setStoredRoomCode, getStoredRoomCode } from '../utils/room';
+import { setStoredRoomCode, getStoredRoomCode, sanitizeRoomCode } from '../utils/room';
 import { getSongByCode, addSongToQueue, getRoomQueue } from '../lib/songs';
 import type { Song } from '../types/song';
 
@@ -256,16 +256,18 @@ export default function RemoteView() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (inputRoom.trim()) setActiveRoom(inputRoom.trim().toUpperCase());
+                const clean = sanitizeRoomCode(inputRoom);
+                if (clean) setActiveRoom(clean);
               }}
               className="flex flex-col gap-4 mt-2"
             >
               <input
                 type="text"
                 value={inputRoom}
-                onChange={(e) => setInputRoom(e.target.value.toUpperCase())}
+                onChange={(e) => setInputRoom(sanitizeRoomCode(e.target.value))}
                 placeholder="e.g. KANTA-88"
                 maxLength={10}
+                aria-label="Room code"
                 className="w-full text-center py-4 px-4 rounded-xl bg-slate-950 border-2 border-slate-800 focus:border-fuchsia-500 focus:outline-none text-2xl font-digital font-bold tracking-widest text-amber-400 placeholder:text-slate-700"
                 autoFocus
               />
