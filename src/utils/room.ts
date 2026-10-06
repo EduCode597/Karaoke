@@ -23,11 +23,22 @@ export function getStoredRoomCode(): string | null {
 }
 
 /**
+ * Sanitize and format a user-provided or generated room code
+ */
+export function sanitizeRoomCode(code: string): string {
+  if (!code) return '';
+  return code
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, '')
+    .slice(0, 10);
+}
+
+/**
  * Persist room code to session storage
  */
 export function setStoredRoomCode(code: string): void {
   if (typeof window === 'undefined') return;
-  sessionStorage.setItem(ROOM_STORAGE_KEY, code.toUpperCase().trim());
+  sessionStorage.setItem(ROOM_STORAGE_KEY, sanitizeRoomCode(code));
 }
 
 /**

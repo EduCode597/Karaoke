@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { searchSongs } from './lib/songs';
 import { isSupabaseConfigured } from './lib/supabase';
+import { sanitizeRoomCode } from './utils/room';
 import type { Song } from './types/song';
 import HostView from './views/HostView';
 import RemoteView from './views/RemoteView';
@@ -148,16 +149,18 @@ function HomeDashboard() {
             <input
               type="text"
               value={joinRoomCode}
-              onChange={(e) => setJoinRoomCode(e.target.value.toUpperCase())}
+              onChange={(e) => setJoinRoomCode(sanitizeRoomCode(e.target.value))}
               placeholder="ROOM CODE"
               maxLength={10}
+              aria-label="Room code"
               className="px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-amber-400 font-digital font-bold tracking-widest text-sm focus:border-amber-400 focus:outline-none w-full sm:w-36 text-center uppercase shadow-inner min-h-[44px]"
             />
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <button
                 onClick={() => {
-                  if (joinRoomCode.trim()) {
-                    navigate(`/host?room=${joinRoomCode.trim().toUpperCase()}`);
+                  const clean = sanitizeRoomCode(joinRoomCode);
+                  if (clean) {
+                    navigate(`/host?room=${encodeURIComponent(clean)}`);
                   }
                 }}
                 disabled={!joinRoomCode.trim()}
@@ -168,8 +171,9 @@ function HomeDashboard() {
               </button>
               <button
                 onClick={() => {
-                  if (joinRoomCode.trim()) {
-                    navigate(`/remote?room=${joinRoomCode.trim().toUpperCase()}`);
+                  const clean = sanitizeRoomCode(joinRoomCode);
+                  if (clean) {
+                    navigate(`/remote?room=${encodeURIComponent(clean)}`);
                   }
                 }}
                 disabled={!joinRoomCode.trim()}
@@ -228,6 +232,7 @@ function HomeDashboard() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by 5-digit code (e.g. 01001) or title (e.g. El Bimbo, Torete)..."
+              aria-label="Search catalog by 5-digit code, title, or artist"
               className="w-full pl-12 pr-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 text-slate-100 placeholder:text-slate-600 font-mono text-sm transition-all"
             />
           </div>

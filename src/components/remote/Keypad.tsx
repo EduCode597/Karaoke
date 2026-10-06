@@ -1,4 +1,5 @@
 import { Delete } from 'lucide-react';
+import { playKeypadClick } from '../../utils/soundEffects';
 
 interface KeypadProps {
   onDigitPress: (digit: string) => void;
@@ -15,37 +16,13 @@ export default function Keypad({
   onEnter,
   canEnter,
 }: KeypadProps) {
-  // Web Audio click generator for physical tactile feel
-  const playClickSound = () => {
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.04);
-
-      gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
-
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.04);
-    } catch {
-      // AudioContext unavailable or blocked by browser policy
-    }
-  };
-
   const handleKeyPress = (digit: string) => {
-    playClickSound();
+    playKeypadClick();
     onDigitPress(digit);
   };
 
   const handleAction = (actionFn: () => void) => {
-    playClickSound();
+    playKeypadClick();
     actionFn();
   };
 

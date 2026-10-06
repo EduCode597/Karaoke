@@ -270,13 +270,11 @@ export async function addSongToQueue(
  */
 export async function removeSongFromQueue(queueId: string): Promise<boolean> {
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith('videoke_queue_')) {
-        const q = JSON.parse(localStorage.getItem(key) || '[]');
-        const updated = q.filter((item: QueueItem) => item.id !== queueId);
-        localStorage.setItem(key, JSON.stringify(updated));
-      }
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith('videoke_queue_'));
+    for (const key of keys) {
+      const q = JSON.parse(localStorage.getItem(key) || '[]');
+      const updated = q.filter((item: QueueItem) => item.id !== queueId);
+      localStorage.setItem(key, JSON.stringify(updated));
     }
     window.dispatchEvent(new Event('videoke_queue_change'));
   } catch {}
@@ -302,9 +300,10 @@ export async function moveSongToTop(roomCode: string, queueId: string): Promise<
     const key = `videoke_queue_${roomCode}`;
     const q: QueueItem[] = JSON.parse(localStorage.getItem(key) || '[]');
     const idx = q.findIndex((item) => item.id === queueId);
-    if (idx > 1) {
+    const targetIndex = q[0]?.status === 'playing' ? 1 : 0;
+    if (idx > targetIndex) {
       const [item] = q.splice(idx, 1);
-      q.splice(1, 0, item);
+      q.splice(targetIndex, 0, item);
       localStorage.setItem(key, JSON.stringify(q));
       window.dispatchEvent(new Event('videoke_queue_change'));
     }
@@ -340,13 +339,11 @@ export async function moveSongToTop(roomCode: string, queueId: string): Promise<
  */
 export async function completeSongInQueue(queueId: string): Promise<boolean> {
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith('videoke_queue_')) {
-        const q: QueueItem[] = JSON.parse(localStorage.getItem(key) || '[]');
-        const updated = q.filter((item) => item.id !== queueId);
-        localStorage.setItem(key, JSON.stringify(updated));
-      }
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith('videoke_queue_'));
+    for (const key of keys) {
+      const q: QueueItem[] = JSON.parse(localStorage.getItem(key) || '[]');
+      const updated = q.filter((item) => item.id !== queueId);
+      localStorage.setItem(key, JSON.stringify(updated));
     }
     window.dispatchEvent(new Event('videoke_queue_change'));
   } catch {}

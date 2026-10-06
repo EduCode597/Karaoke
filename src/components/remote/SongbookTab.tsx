@@ -72,6 +72,7 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by title, artist, or 5-digit code (e.g. 01001)..."
+            aria-label="Search song catalog"
             className="w-full pl-10 pr-9 py-3 rounded-xl bg-slate-900/90 border border-slate-800 focus:border-cyan-400 focus:outline-none text-sm text-white placeholder:text-slate-500 font-mono transition-all shadow-inner focus:shadow-[0_0_15px_rgba(6,182,212,0.25)]"
           />
           {searchTerm && (
@@ -79,6 +80,7 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
               onClick={() => setSearchTerm('')}
               className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white transition-colors"
               title="Clear search"
+              aria-label="Clear search"
             >
               <X className="w-4 h-4" />
             </button>

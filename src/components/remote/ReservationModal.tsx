@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mic2, X, CheckCircle2 } from 'lucide-react';
 import type { Song } from '../../types/song';
 
@@ -21,22 +21,40 @@ export default function ReservationModal({
     return localStorage.getItem('pinoyvideoke_singer_name') || '';
   });
 
+  // Keyboard accessibility: dismiss modal on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !loading) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, loading, onClose]);
+
   if (!isOpen || !song) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const finalName = singerName.trim() || 'Guest';
+    const finalName = singerName.trim().replace(/[<>]/g, '').slice(0, 30) || 'Guest';
     localStorage.setItem('pinoyvideoke_singer_name', finalName);
     await onConfirm(finalName);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reservation-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+    >
       <div className="w-full max-w-sm rounded-2xl bg-slate-950 border border-slate-800 shadow-2xl p-6 flex flex-col gap-5 relative">
         {/* Close Button */}
         <button
           onClick={onClose}
           disabled={loading}
+          aria-label="Close modal"
           className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-500 hover:text-white bg-slate-900 border border-slate-800"
         >
           <X className="w-4 h-4" />
@@ -48,7 +66,9 @@ export default function ReservationModal({
             <Mic2 className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-bold text-base text-white">Reserve Song</h3>
+            <h3 id="reservation-modal-title" className="font-bold text-base text-white">
+              Reserve Song
+            </h3>
             <p className="text-xs text-slate-400 font-mono">Join the party queue</p>
           </div>
         </div>
@@ -74,6 +94,7 @@ export default function ReservationModal({
               onChange={(e) => setSingerName(e.target.value)}
               placeholder="e.g. Tito Boy, Ate Sarah..."
               maxLength={30}
+              aria-label="Singer Name"
               className="w-full py-3 px-3.5 rounded-xl bg-slate-900 border border-slate-800 focus:border-cyan-400 focus:outline-none text-sm text-white font-mono placeholder:text-slate-600"
               autoFocus
             />

@@ -218,3 +218,108 @@ export function playSoundEffect(type: 'airhorn' | 'applause' | 'drumroll' | 'gon
       break;
   }
 }
+
+/**
+ * Fast click tone for rolling score counters
+ */
+export function playScoreTick() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(880, now);
+  osc.frequency.exponentialRampToValueAtTime(440, now + 0.03);
+
+  gain.gain.setValueAtTime(0.08, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.03);
+}
+
+/**
+ * Grand Brass Fanfare for high videoke scores (90 - 100)
+ */
+export function playTrumpetFanfare() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const notes = [
+    { freq: 261.63, start: 0.0, dur: 0.18 },
+    { freq: 329.63, start: 0.18, dur: 0.18 },
+    { freq: 392.0, start: 0.36, dur: 0.22 },
+    { freq: 523.25, start: 0.58, dur: 0.8 },
+  ];
+
+  notes.forEach(({ freq, start, dur }) => {
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(freq, now + start);
+
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(freq * 1.002, now + start);
+
+    gain.gain.setValueAtTime(0, now + start);
+    gain.gain.linearRampToValueAtTime(0.18, now + start + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start(now + start);
+    osc2.start(now + start);
+    osc1.stop(now + start + dur);
+    osc2.stop(now + start + dur);
+  });
+}
+
+/**
+ * Score Fanfare based on performance tier
+ */
+export function playScoreFanfare(tier: string) {
+  if (tier === 'champion' || tier === 'concert') {
+    playTrumpetFanfare();
+    setTimeout(() => playApplause(), 600);
+  } else if (tier === 'gong') {
+    playGong();
+  } else {
+    playApplause();
+  }
+}
+
+/**
+ * Tactile acoustic key click tone for 3x4 keypad digit entry
+ */
+export function playKeypadClick() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(600, now);
+  osc.frequency.exponentialRampToValueAtTime(150, now + 0.04);
+
+  gain.gain.setValueAtTime(0.12, now);
+  gain.gain.exponentialRampToValueAtTime(0.01, now + 0.04);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.04);
+}
