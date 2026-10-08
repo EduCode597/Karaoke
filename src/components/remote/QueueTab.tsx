@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ListMusic, Trash2, ArrowUp, Music2, User, Disc, RefreshCw, Sparkles } from 'lucide-react';
+import { ListMusic, Trash2, ArrowUp, User, Disc, RefreshCw, Sparkles } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { getRoomQueue, removeSongFromQueue, moveSongToTop } from '../../lib/songs';
 import type { QueueItem } from '../../types/song';
@@ -84,52 +84,56 @@ export default function QueueTab({
   };
 
   return (
-    <div className="flex flex-col gap-4 w-full pb-20">
+    <div className="flex flex-col gap-4 w-full pb-24">
       {/* Queue Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="p-2 rounded-xl bg-fuchsia-950/80 border border-fuchsia-500/40 text-fuchsia-400">
-            <ListMusic className="w-4 h-4" />
+      <div className="p-4 rounded-3xl bg-slate-950/90 border border-slate-800 shadow-xl flex items-center justify-between backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-2xl bg-fuchsia-950/80 border border-fuchsia-500/40 text-fuchsia-400 shadow-neon-magenta">
+            <ListMusic className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-white">Party Queue</h3>
-            <p className="text-[11px] font-mono text-slate-400">
-              {queue.length} {queue.length === 1 ? 'song' : 'songs'} in line
-            </p>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-sm text-white">Party Queue</h3>
+              <span className="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-fuchsia-300 font-digital font-bold text-xs">
+                {queue.length} IN LINE
+              </span>
+            </div>
+            <p className="text-[11px] font-mono text-slate-400">Live synchronized singing lineup</p>
           </div>
         </div>
 
         <button
           onClick={fetchQueue}
           disabled={loading}
-          className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors"
+          className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 touch-manipulation min-h-[40px] min-w-[40px] flex items-center justify-center"
           title="Refresh Queue"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-cyan-400' : ''}`} />
         </button>
       </div>
 
       {/* Queue Items List */}
       <div className="flex flex-col gap-3">
         {loading && queue.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-500 font-mono text-xs">
-            <div className="w-6 h-6 border-2 border-fuchsia-400 border-t-transparent rounded-full animate-spin" />
-            <span>Syncing room playlist...</span>
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-500 font-mono text-xs">
+            <div className="w-8 h-8 border-2 border-fuchsia-400 border-t-transparent rounded-full animate-spin shadow-neon-magenta" />
+            <span>Syncing room playlist from cloud...</span>
           </div>
         ) : queue.length === 0 ? (
-          <div className="p-8 rounded-2xl bg-slate-900/50 border border-slate-800/80 text-center flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-500">
-              <Disc className="w-6 h-6" />
+          <div className="p-8 sm:p-12 rounded-3xl bg-slate-950/70 border border-slate-800/80 text-center flex flex-col items-center gap-3 shadow-xl">
+            <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
+              <Disc className="w-7 h-7" />
             </div>
-            <h4 className="text-sm font-bold text-white">The Queue is Empty!</h4>
-            <p className="text-xs text-slate-400 font-mono max-w-xs">
-              Be the first singer of the night! Use the Keypad or search the Songbook.
+            <h4 className="text-base font-bold text-white">The Party Queue is Empty!</h4>
+            <p className="text-xs text-slate-400 font-mono max-w-xs leading-relaxed">
+              Step up and be the opening singer of the night! Punch 5 digits on the Keypad or search
+              the Songbook.
             </p>
             <button
               onClick={onNavigateToSongbook}
-              className="mt-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-fuchsia-600 to-cyan-600 text-black font-mono font-bold text-xs uppercase tracking-wider shadow-neon-magenta active:scale-95 transition-all"
+              className="mt-3 py-3 px-5 rounded-2xl bg-gradient-to-r from-fuchsia-600 to-cyan-500 text-black font-mono font-black text-xs uppercase tracking-wider shadow-neon-magenta active:scale-95 transition-all touch-manipulation min-h-[44px]"
             >
-              Browse Songbook
+              Browse Songbook Catalog
             </button>
           </div>
         ) : (
@@ -140,64 +144,72 @@ export default function QueueTab({
             return (
               <div
                 key={item.id}
-                className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 shadow-md ${
+                className={`p-3.5 sm:p-4 rounded-3xl border transition-all flex items-center justify-between gap-3 shadow-md ${
                   isPlaying
-                    ? 'bg-gradient-to-r from-cyan-950/40 via-slate-900 to-slate-950 border-cyan-500/50 shadow-neon-cyan/20'
-                    : 'bg-slate-900/90 border-slate-800/90'
+                    ? 'bg-gradient-to-r from-cyan-950/60 via-slate-950 to-slate-950 border-cyan-500/60 shadow-neon-cyan/20'
+                    : 'bg-slate-950/80 border-slate-800/80 hover:border-slate-700'
                 }`}
               >
                 {/* Index / Playing Badge */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 overflow-hidden min-w-0">
                   <div
-                    className={`w-7 h-7 rounded-xl flex items-center justify-center font-mono font-bold text-xs ${
+                    className={`w-9 h-9 rounded-2xl flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
                       isPlaying
-                        ? 'bg-cyan-500 text-black shadow-neon-cyan animate-pulse'
-                        : 'bg-slate-800 text-slate-400'
+                        ? 'bg-gradient-to-tr from-cyan-500 to-cyan-400 text-slate-950 shadow-neon-cyan'
+                        : 'bg-slate-900 border border-slate-800 text-slate-400'
                     }`}
                   >
-                    {isPlaying ? <Music2 className="w-3.5 h-3.5" /> : index + 1}
+                    {isPlaying ? (
+                      <div className="flex items-end gap-0.5 h-4">
+                        <span className="w-0.5 h-3 bg-slate-950 animate-pulse" />
+                        <span className="w-0.5 h-4 bg-slate-950 animate-pulse" />
+                        <span className="w-0.5 h-2 bg-slate-950 animate-pulse" />
+                      </div>
+                    ) : (
+                      index + 1
+                    )}
                   </div>
 
                   {/* Song & Singer Details */}
-                  <div className="overflow-hidden">
+                  <div className="overflow-hidden min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-digital text-xs text-amber-400 font-bold tracking-wider">
+                      <span className="font-digital text-xs text-amber-400 font-bold tracking-wider shrink-0">
                         {item.song?.code || '-----'}
                       </span>
-                      <h4 className="font-bold text-xs text-white truncate">
+                      <h4 className="font-bold text-xs sm:text-sm text-white truncate">
                         {item.song?.title || 'Unknown Title'}
                       </h4>
                     </div>
 
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                    <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5 truncate">
                       <span className="truncate">{item.song?.artist || 'Unknown Artist'}</span>
                       <span>•</span>
-                      <span className="flex items-center gap-1 text-cyan-400 font-mono font-medium truncate">
-                        <User className="w-3 h-3" />
+                      <span className="flex items-center gap-1 text-cyan-300 font-mono font-medium truncate shrink-0">
+                        <User className="w-3 h-3 text-cyan-400" />
                         {item.singer_name || 'Guest'}
                       </span>
                     </div>
 
                     {isPlaying && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-mono text-cyan-400 mt-1 uppercase tracking-wider">
-                        <Sparkles className="w-2.5 h-2.5" />
-                        Now Performing
+                      <span className="inline-flex items-center gap-1 text-[10px] font-mono text-cyan-400 mt-1 uppercase tracking-wider font-bold">
+                        <Sparkles className="w-3 h-3" />
+                        Now Performing on Stage
                       </span>
                     )}
                   </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   {/* Move to Top (only for queued items past index 1) */}
                   {index > 1 && (
                     <button
                       onClick={() => handleMoveToTop(item.id)}
                       disabled={isBusy}
-                      title="Move to top of queue"
-                      className="p-2 rounded-xl bg-slate-800 hover:bg-cyan-950 hover:text-cyan-400 text-slate-400 border border-slate-700 active:scale-95 transition-all"
+                      title="Bump to top of queue"
+                      className="p-2 sm:p-2.5 rounded-xl bg-slate-900 hover:bg-cyan-950 hover:text-cyan-300 text-slate-400 border border-slate-800 active:scale-95 transition-all touch-manipulation min-h-[40px] min-w-[40px] flex items-center justify-center"
                     >
-                      <ArrowUp className="w-3.5 h-3.5" />
+                      <ArrowUp className="w-4 h-4" />
                     </button>
                   )}
 
@@ -206,9 +218,9 @@ export default function QueueTab({
                     onClick={() => handleRemove(item.id)}
                     disabled={isBusy}
                     title="Remove from queue"
-                    className="p-2 rounded-xl bg-slate-800 hover:bg-rose-950 hover:text-rose-400 text-slate-400 border border-slate-700 active:scale-95 transition-all"
+                    className="p-2 sm:p-2.5 rounded-xl bg-slate-900 hover:bg-rose-950 hover:text-rose-300 text-slate-400 border border-slate-800 active:scale-95 transition-all touch-manipulation min-h-[40px] min-w-[40px] flex items-center justify-center"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
