@@ -1,6 +1,7 @@
 import { useState, useEffect, useTransition } from 'react';
 import { Search, Music, Mic2, X, Clock, Globe, Grid3X3, Sparkles } from 'lucide-react';
 import { searchSongs } from '../../lib/songs';
+import Pagination from '../common/Pagination';
 import type { Song } from '../../types/song';
 
 interface SongbookTabProps {
@@ -14,9 +15,12 @@ const CATEGORIES = [
   { id: 'English', label: '🌐 English (417)' },
 ] as const;
 
+const SONGS_PER_PAGE = 16;
+
 export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: SongbookTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [currentPage, setCurrentPage] = useState(1);
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [, startTransition] = useTransition();
@@ -24,6 +28,7 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
   // Load and filter songs with fast debounce
   useEffect(() => {
     let isCancelled = false;
+    setCurrentPage(1);
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
@@ -50,6 +55,12 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
       clearTimeout(timer);
     };
   }, [searchTerm, selectedCategory]);
+
+  const totalPages = Math.max(1, Math.ceil(songs.length / SONGS_PER_PAGE));
+  const paginatedSongs = songs.slice(
+    (currentPage - 1) * SONGS_PER_PAGE,
+    currentPage * SONGS_PER_PAGE
+  );
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '3:30';
@@ -176,73 +187,88 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4">
-          {songs.map((song) => (
-            <div
-              key={song.id}
-              className="group relative rounded-2xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-cyan-500/50 p-4 transition-all duration-200 hover:shadow-[0_4px_24px_rgba(6,182,212,0.18)] hover:-translate-y-0.5 flex flex-col justify-between gap-3 shadow-lg backdrop-blur-sm"
-            >
-              {/* Card Top: Code Badge & Metadata */}
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => onLoadIntoKeypad && onLoadIntoKeypad(song.code)}
-                  title="Tap to load code into keypad"
-                  className="px-2.5 py-1 rounded-lg bg-slate-950 border border-amber-400/40 hover:border-amber-400 text-amber-400 font-digital font-bold text-xs sm:text-sm tracking-wider hover:scale-105 active:scale-95 transition-all shadow-[0_0_8px_rgba(251,191,36,0.15)] shrink-0"
-                >
-                  {song.code}
-                </button>
-                <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
-                  <span className="px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-300 flex items-center gap-1 border border-slate-700/50">
-                    <Globe className="w-3 h-3 text-cyan-400" />
-                    {song.language}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-400 flex items-center gap-1 border border-slate-700/50">
-                    <Clock className="w-3 h-3 text-slate-400" />
-                    {formatDuration(song.duration)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Card Middle: Title & Artist */}
-              <div className="min-w-0 my-0.5">
-                <h4
-                  className="font-bold text-sm sm:text-base text-white group-hover:text-cyan-300 transition-colors truncate"
-                  title={song.title}
-                >
-                  {song.title}
-                </h4>
-                <p
-                  className="text-xs sm:text-sm text-slate-400 truncate mt-0.5"
-                  title={song.artist}
-                >
-                  {song.artist}
-                </p>
-              </div>
-
-              {/* Card Bottom: Actions */}
-              <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60 mt-auto">
-                {onLoadIntoKeypad && (
+        <div className="flex flex-col gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4">
+            {paginatedSongs.map((song) => (
+              <div
+                key={song.id}
+                className="group relative rounded-2xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-cyan-500/50 p-4 transition-all duration-200 hover:shadow-[0_4px_24px_rgba(6,182,212,0.18)] hover:-translate-y-0.5 flex flex-col justify-between gap-3 shadow-lg backdrop-blur-sm"
+              >
+                {/* Card Top: Code Badge & Metadata */}
+                <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
-                    onClick={() => onLoadIntoKeypad(song.code)}
-                    className="px-2.5 py-2 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-amber-400/50 text-slate-400 hover:text-amber-400 text-xs font-mono flex items-center justify-center gap-1 transition-all active:scale-95"
-                    title="Load code into 3x4 Keypad"
+                    onClick={() => onLoadIntoKeypad && onLoadIntoKeypad(song.code)}
+                    title="Tap to load code into keypad"
+                    className="px-2.5 py-1 rounded-lg bg-slate-950 border border-amber-400/40 hover:border-amber-400 text-amber-400 font-digital font-bold text-xs sm:text-sm tracking-wider hover:scale-105 active:scale-95 transition-all shadow-[0_0_8px_rgba(251,191,36,0.15)] shrink-0"
                   >
-                    <Grid3X3 className="w-3.5 h-3.5" />
-                    <span className="hidden min-[400px]:inline">Keypad</span>
+                    {song.code}
                   </button>
-                )}
-                <button
-                  onClick={() => onSelectSong(song)}
-                  className="flex-1 py-2 px-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-mono font-bold text-xs flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(6,182,212,0.25)] hover:shadow-[0_0_16px_rgba(6,182,212,0.4)] active:scale-95 transition-all touch-manipulation"
-                >
-                  <Mic2 className="w-3.5 h-3.5" />
-                  <span>Reserve</span>
-                </button>
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
+                    <span className="px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-300 flex items-center gap-1 border border-slate-700/50">
+                      <Globe className="w-3 h-3 text-cyan-400" />
+                      {song.language}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-400 flex items-center gap-1 border border-slate-700/50">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      {formatDuration(song.duration)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card Middle: Title & Artist */}
+                <div className="min-w-0 my-0.5">
+                  <h4
+                    className="font-bold text-sm sm:text-base text-white group-hover:text-cyan-300 transition-colors truncate"
+                    title={song.title}
+                  >
+                    {song.title}
+                  </h4>
+                  <p
+                    className="text-xs sm:text-sm text-slate-400 truncate mt-0.5"
+                    title={song.artist}
+                  >
+                    {song.artist}
+                  </p>
+                </div>
+
+                {/* Card Bottom: Actions */}
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60 mt-auto">
+                  {onLoadIntoKeypad && (
+                    <button
+                      type="button"
+                      onClick={() => onLoadIntoKeypad(song.code)}
+                      className="px-2.5 py-2 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-amber-400/50 text-slate-400 hover:text-amber-400 text-xs font-mono flex items-center justify-center gap-1 transition-all active:scale-95"
+                      title="Load code into 3x4 Keypad"
+                    >
+                      <Grid3X3 className="w-3.5 h-3.5" />
+                      <span className="hidden min-[400px]:inline">Keypad</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onSelectSong(song)}
+                    className="flex-1 py-2 px-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-mono font-bold text-xs flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(6,182,212,0.25)] hover:shadow-[0_0_16px_rgba(6,182,212,0.4)] active:scale-95 transition-all touch-manipulation"
+                  >
+                    <Mic2 className="w-3.5 h-3.5" />
+                    <span>Reserve</span>
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+
+          {/* Flowbite Pagination Component with Direct Page Jump */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={songs.length}
+            itemsPerPage={SONGS_PER_PAGE}
+            onPageChange={(page) => {
+              setCurrentPage(page);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="pt-3 border-t border-slate-800/80"
+          />
         </div>
       )}
     </div>
