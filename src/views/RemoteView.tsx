@@ -138,7 +138,7 @@ export default function RemoteView() {
       setMatchedSong(null);
       setResolving(false);
     }
-  }, [digits]);
+  }, [digits, triggerHaptic]);
 
   const handleDigitPress = (digit: string) => {
     triggerHaptic(12);
@@ -227,29 +227,35 @@ export default function RemoteView() {
   // If no room is active, render Room Code Entry Screen
   if (!activeRoom) {
     return (
-      <div className="min-h-[100dvh] bg-videoke-bg text-slate-100 flex flex-col justify-between p-6">
-        <header className="flex items-center gap-3">
+      <div className="min-h-[100dvh] bg-videoke-bg bg-grid-cyber text-slate-100 flex flex-col justify-between p-4 sm:p-6 selection:bg-fuchsia-500 selection:text-black">
+        <header className="flex items-center justify-between max-w-md mx-auto w-full pt-2">
           <Link
             to="/"
-            className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
+            className="p-2.5 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <h1 className="text-lg font-bold text-glow-magenta text-fuchsia-400">
-            CONNECT TO TV ROOM
-          </h1>
+          <div className="text-right">
+            <h1 className="text-sm font-black tracking-wider text-glow-magenta text-fuchsia-400 font-mono">
+              PINOY VIDEOKE REMOTE
+            </h1>
+            <p className="text-[10px] text-slate-400 font-mono">Wireless 5-Digit Controller</p>
+          </div>
         </header>
 
-        <main className="max-w-md mx-auto w-full flex flex-col gap-6 my-auto">
-          <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl flex flex-col gap-4 text-center">
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-fuchsia-950/80 border border-fuchsia-500/40 flex items-center justify-center text-fuchsia-400 shadow-neon-magenta">
+        <main className="max-w-md mx-auto w-full flex flex-col gap-6 my-auto py-8">
+          <div className="p-6 sm:p-8 rounded-3xl bg-slate-950/90 border border-slate-800/90 shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col gap-5 text-center relative overflow-hidden backdrop-blur-xl">
+            {/* Top Glow Accent */}
+            <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-fuchsia-500/15 to-transparent pointer-events-none" />
+
+            <div className="w-16 h-16 mx-auto rounded-3xl bg-fuchsia-950/80 border border-fuchsia-500/50 flex items-center justify-center text-fuchsia-400 shadow-neon-magenta relative z-10">
               <Tv className="w-8 h-8" />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <h2 className="text-xl font-black text-white">Enter Room Code</h2>
-              <p className="text-xs text-slate-400 font-mono">
-                Look at the TV screen for the 6-character room code (e.g. KANTA-88)
+            <div className="flex flex-col gap-1 relative z-10">
+              <h2 className="text-2xl font-black text-white">Enter Room Code</h2>
+              <p className="text-xs text-slate-400 font-mono max-w-xs mx-auto leading-relaxed">
+                Check the top banner of the TV screen for your 6-character room code (e.g. KANTA-88)
               </p>
             </div>
 
@@ -259,45 +265,65 @@ export default function RemoteView() {
                 const clean = sanitizeRoomCode(inputRoom);
                 if (clean) setActiveRoom(clean);
               }}
-              className="flex flex-col gap-4 mt-2"
+              className="flex flex-col gap-4 mt-1 relative z-10"
             >
-              <input
-                type="text"
-                value={inputRoom}
-                onChange={(e) => setInputRoom(sanitizeRoomCode(e.target.value))}
-                placeholder="e.g. KANTA-88"
-                maxLength={10}
-                aria-label="Room code"
-                className="w-full text-center py-4 px-4 rounded-xl bg-slate-950 border-2 border-slate-800 focus:border-fuchsia-500 focus:outline-none text-2xl font-digital font-bold tracking-widest text-amber-400 placeholder:text-slate-700"
-                autoFocus
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={inputRoom}
+                  onChange={(e) => setInputRoom(sanitizeRoomCode(e.target.value))}
+                  placeholder="e.g. KANTA-88"
+                  maxLength={10}
+                  aria-label="Room code"
+                  className="w-full text-center py-4 px-4 rounded-2xl bg-slate-900 border-2 border-slate-700 focus:border-amber-400 focus:outline-none text-2xl font-digital font-bold tracking-widest text-amber-300 placeholder:text-slate-600 shadow-inner"
+                  autoFocus
+                />
+              </div>
 
               <button
                 type="submit"
-                className="w-full py-4 rounded-xl bg-gradient-to-r from-fuchsia-600 to-cyan-600 text-black font-black tracking-wider text-sm uppercase active:scale-95 transition-transform shadow-neon-magenta"
+                disabled={!inputRoom.trim()}
+                className="w-full py-4 rounded-2xl bg-gradient-to-r from-fuchsia-600 via-pink-500 to-cyan-500 text-black font-black tracking-wider text-sm uppercase active:scale-95 transition-all shadow-neon-magenta disabled:opacity-40 disabled:pointer-events-none touch-manipulation min-h-[48px]"
               >
-                Connect to TV
+                Connect to TV Stage
               </button>
             </form>
+
+            {/* Quick Demo Room preset button */}
+            <div className="pt-3 border-t border-slate-800/80 flex flex-col gap-2 relative z-10">
+              <span className="text-[11px] font-mono text-slate-500">Testing standalone?</span>
+              <button
+                onClick={() => {
+                  setInputRoom('KANTA-88');
+                  setActiveRoom('KANTA-88');
+                }}
+                className="py-2.5 px-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500/50 text-cyan-400 font-mono text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Quick Join Demo Room (KANTA-88)</span>
+              </button>
+            </div>
           </div>
         </main>
 
-        <footer className="text-center text-xs text-slate-600 font-mono">
-          Tip: You can also scan the QR code on the TV screen to connect automatically
+        <footer className="text-center text-xs text-slate-500 font-mono pb-2 max-w-sm mx-auto">
+          Tip: You can also scan the QR code displayed on the TV screen to pair your smartphone
+          camera directly.
         </footer>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] bg-videoke-bg text-slate-100 flex flex-col justify-between selection:bg-fuchsia-500 selection:text-black">
+    <div className="min-h-[100dvh] bg-videoke-bg bg-grid-cyber text-slate-100 flex flex-col justify-between selection:bg-fuchsia-500 selection:text-black">
       {/* Top Header Bar */}
-      <header className="border-b border-slate-800 bg-slate-950/95 backdrop-blur-md px-4 sm:px-6 py-3 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
+      <header className="border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md px-4 sm:px-6 py-3 sticky top-0 z-30 shadow-lg">
+        <div className="max-w-4xl mx-auto w-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
               to="/"
-              className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
+              className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors touch-manipulation min-h-[40px] min-w-[40px] flex items-center justify-center"
+              title="Back to Dashboard"
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
@@ -312,12 +338,12 @@ export default function RemoteView() {
                         : 'bg-red-500 animate-pulse'
                   }`}
                 />
-                <span className="text-[10px] uppercase font-mono text-slate-400">
-                  {status === 'connected' ? `Paired (${onlineCount} in room)` : 'Connecting...'}
+                <span className="text-[10px] uppercase font-mono text-slate-400 font-bold">
+                  {status === 'connected' ? `Live (${onlineCount} in room)` : 'Connecting...'}
                 </span>
               </div>
-              <p className="text-sm font-digital font-black text-amber-400 tracking-wider">
-                {activeRoom}
+              <p className="text-sm font-digital font-black text-amber-400 tracking-wider text-glow-amber">
+                ROOM: {activeRoom}
               </p>
             </div>
           </div>
@@ -327,8 +353,8 @@ export default function RemoteView() {
             {/* Quick Cheer / SFX Button */}
             <button
               onClick={() => handleBroadcastAction('party:sfx', { sfxType: 'airhorn' })}
-              className="p-2 rounded-xl bg-fuchsia-950/80 border border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-900 active:scale-90 transition-transform shadow-neon-magenta"
-              title="Send Airhorn Sound Effect"
+              className="p-2.5 rounded-xl bg-fuchsia-950/80 border border-fuchsia-500/40 text-fuchsia-400 hover:bg-fuchsia-900 active:scale-90 transition-all shadow-neon-magenta touch-manipulation min-h-[40px] min-w-[40px] flex items-center justify-center"
+              title="Blast Airhorn to TV Speakers"
             >
               <Volume2 className="w-4 h-4" />
             </button>
@@ -338,9 +364,9 @@ export default function RemoteView() {
                 setActiveRoom('');
                 setStoredRoomCode('');
               }}
-              className="text-[11px] font-mono px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors"
+              className="text-[11px] font-mono px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-colors touch-manipulation min-h-[40px]"
             >
-              Change
+              Switch Room
             </button>
           </div>
         </div>
@@ -348,7 +374,7 @@ export default function RemoteView() {
 
       {/* Toast Notification Banner */}
       {toastMessage && (
-        <div className="fixed top-16 left-4 right-4 z-40 max-w-sm mx-auto p-3 rounded-xl bg-emerald-950/90 border border-emerald-500/60 text-emerald-300 shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-mono animate-bounce">
+        <div className="fixed top-16 left-4 right-4 z-40 max-w-sm mx-auto p-3.5 rounded-2xl bg-emerald-950/95 border border-emerald-500/60 text-emerald-300 shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-mono animate-bounce">
           <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />
           <span className="truncate">{toastMessage}</span>
         </div>
@@ -356,7 +382,7 @@ export default function RemoteView() {
 
       {/* Main Tab Screen Area */}
       <main
-        className={`mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 flex-1 flex flex-col justify-start transition-all duration-300 ${
+        className={`mx-auto w-full px-4 sm:px-6 lg:px-8 py-5 flex-1 flex flex-col justify-start transition-all duration-300 ${
           activeTab === 'songbook'
             ? 'max-w-7xl'
             : activeTab === 'queue'
@@ -375,6 +401,7 @@ export default function RemoteView() {
               matchedSong={matchedSong}
               loading={resolving}
               onClear={handleClear}
+              onQuickReserve={handleOpenReserveModal}
             />
 
             {/* Tactile 3x4 Matrix Keypad */}
@@ -386,23 +413,23 @@ export default function RemoteView() {
               canEnter={Boolean(matchedSong)}
             />
 
-            {/* Quick Live SFX Bar */}
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+            {/* Quick Live Party Bar */}
+            <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-800/80">
               <button
                 onClick={() =>
                   handleBroadcastAction('party:ping', { message: 'Cheering from mobile!' })
                 }
-                className="py-2.5 px-3 rounded-xl bg-slate-900/90 border border-cyan-500/30 text-cyan-400 text-xs font-mono font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm"
+                className="py-3 px-3 rounded-2xl bg-slate-950/80 border border-cyan-500/40 text-cyan-300 hover:border-cyan-400 text-xs font-mono font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm touch-manipulation min-h-[44px]"
               >
-                <Bell className="w-3.5 h-3.5" />
+                <Bell className="w-3.5 h-3.5 text-cyan-400" />
                 <span>Ping TV Screen</span>
               </button>
 
               <button
                 onClick={() => handleBroadcastAction('party:cheer', { cheerType: 'woohoo' })}
-                className="py-2.5 px-3 rounded-xl bg-slate-900/90 border border-fuchsia-500/30 text-fuchsia-400 text-xs font-mono font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm"
+                className="py-3 px-3 rounded-2xl bg-slate-950/80 border border-fuchsia-500/40 text-fuchsia-300 hover:border-fuchsia-400 text-xs font-mono font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm touch-manipulation min-h-[44px]"
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" />
                 <span>Send Cheers 🎉</span>
               </button>
             </div>
@@ -454,39 +481,45 @@ export default function RemoteView() {
         loading={reserving}
       />
 
-      {/* Bottom Sticky Mobile Tab Navigation */}
-      <nav className="border-t border-slate-800 bg-slate-950/95 backdrop-blur-md px-4 py-2 sticky bottom-0 z-30">
-        <div className="max-w-md mx-auto w-full flex items-center justify-around">
+      {/* Floating Ergonomic Mobile Tab Dock */}
+      <nav className="fixed bottom-4 inset-x-0 z-30 px-4 pointer-events-none">
+        <div className="max-w-md mx-auto w-full p-1.5 rounded-3xl bg-slate-950/95 border border-slate-800 shadow-[0_10px_35px_rgba(0,0,0,0.8)] backdrop-blur-xl flex items-center justify-between pointer-events-auto">
           <button
             onClick={() => setActiveTab('keypad')}
-            className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
-              activeTab === 'keypad' ? 'text-amber-400 font-bold' : 'text-slate-500'
+            className={`flex-1 flex flex-col items-center gap-1 py-2 px-2 rounded-2xl text-xs font-mono transition-all touch-manipulation min-h-[48px] justify-center ${
+              activeTab === 'keypad'
+                ? 'bg-amber-400/15 border border-amber-400/50 text-amber-300 font-bold shadow-[0_0_12px_rgba(251,191,36,0.25)]'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             <KeypadIcon className="w-5 h-5" />
-            <span>Keypad</span>
+            <span className="text-[11px]">Keypad</span>
           </button>
 
           <button
             onClick={() => setActiveTab('songbook')}
-            className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
-              activeTab === 'songbook' ? 'text-cyan-400 font-bold' : 'text-slate-500'
+            className={`flex-1 flex flex-col items-center gap-1 py-2 px-2 rounded-2xl text-xs font-mono transition-all touch-manipulation min-h-[48px] justify-center ${
+              activeTab === 'songbook'
+                ? 'bg-cyan-400/15 border border-cyan-400/50 text-cyan-300 font-bold shadow-[0_0_12px_rgba(6,182,212,0.25)]'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             <BookOpen className="w-5 h-5" />
-            <span>Songbook</span>
+            <span className="text-[11px]">Songbook</span>
           </button>
 
           <button
             onClick={() => setActiveTab('queue')}
-            className={`relative flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
-              activeTab === 'queue' ? 'text-fuchsia-400 font-bold' : 'text-slate-500'
+            className={`relative flex-1 flex flex-col items-center gap-1 py-2 px-2 rounded-2xl text-xs font-mono transition-all touch-manipulation min-h-[48px] justify-center ${
+              activeTab === 'queue'
+                ? 'bg-fuchsia-400/15 border border-fuchsia-400/50 text-fuchsia-300 font-bold shadow-[0_0_12px_rgba(217,70,239,0.25)]'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             <ListMusic className="w-5 h-5" />
-            <span>Queue</span>
+            <span className="text-[11px]">Queue</span>
             {queueCount > 0 && (
-              <span className="absolute -top-1 right-2 px-1.5 py-0.2 rounded-full bg-fuchsia-500 text-black font-bold text-[9px]">
+              <span className="absolute top-1 right-2 px-1.5 py-0.2 rounded-full bg-fuchsia-500 text-black font-bold text-[9px] shadow-neon-magenta">
                 {queueCount}
               </span>
             )}
@@ -494,12 +527,14 @@ export default function RemoteView() {
 
           <button
             onClick={() => setActiveTab('soundboard')}
-            className={`relative flex flex-col items-center gap-1 py-1.5 px-3 rounded-lg text-xs font-mono transition-colors touch-manipulation ${
-              activeTab === 'soundboard' ? 'text-amber-400 font-bold' : 'text-slate-500'
+            className={`relative flex-1 flex flex-col items-center gap-1 py-2 px-2 rounded-2xl text-xs font-mono transition-all touch-manipulation min-h-[48px] justify-center ${
+              activeTab === 'soundboard'
+                ? 'bg-amber-400/15 border border-amber-400/50 text-amber-300 font-bold shadow-[0_0_12px_rgba(251,191,36,0.25)]'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             <Volume2 className="w-5 h-5" />
-            <span>Soundboard</span>
+            <span className="text-[11px]">SFX</span>
           </button>
         </div>
       </nav>

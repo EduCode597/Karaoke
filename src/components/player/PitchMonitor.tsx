@@ -1,4 +1,4 @@
-import { Mic, MicOff, Activity } from 'lucide-react';
+import { Mic, MicOff, Activity, Radio } from 'lucide-react';
 import type { DetectedPitch } from '../../hooks/useMicrophonePitch';
 
 interface PitchMonitorProps {
@@ -16,21 +16,24 @@ export default function PitchMonitor({
   onToggleMic,
   micPermission,
 }: PitchMonitorProps) {
-  // Volume bar segments (10 LED steps)
-  const segments = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+  // Volume bar segments (12 LED steps)
+  const segments = [0.08, 0.16, 0.24, 0.32, 0.4, 0.48, 0.56, 0.64, 0.72, 0.8, 0.88, 0.96];
 
   return (
-    <div className="py-2.5 sm:py-3 px-4 sm:px-5 rounded-2xl bg-slate-950/90 border border-slate-800 flex items-center justify-between gap-4 shadow-lg backdrop-blur-md">
+    <div className="py-3 px-4 sm:px-6 rounded-3xl bg-slate-950/95 border border-slate-800/90 flex flex-wrap items-center justify-between gap-4 shadow-xl backdrop-blur-xl relative overflow-hidden">
+      {/* Subtle top edge specular highlight */}
+      <div className="absolute top-0 inset-x-0 h-[1px] bg-white/10 pointer-events-none" />
+
       {/* Mic Status & Toggle */}
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleMic}
-          className={`py-2 px-3.5 sm:px-4 rounded-xl border text-xs sm:text-sm font-mono font-bold flex items-center gap-2 active:scale-95 transition-all touch-manipulation min-h-[44px] ${
+          className={`py-2.5 px-4 sm:px-5 rounded-2xl border text-xs sm:text-sm font-mono font-bold flex items-center gap-2 active:scale-95 transition-all touch-manipulation min-h-[44px] ${
             isListening
-              ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-400 shadow-[0_0_12px_#10b981]'
+              ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-400 shadow-neon-emerald'
               : micPermission === 'denied'
-                ? 'bg-rose-950/60 border-rose-500/40 text-rose-300'
-                : 'bg-slate-900 border-amber-500/40 text-amber-300 hover:border-amber-400 hover:text-white shadow-[0_0_10px_rgba(251,191,36,0.15)]'
+                ? 'bg-rose-950/70 border-rose-500/50 text-rose-300'
+                : 'bg-slate-900 border-amber-500/50 text-amber-300 hover:border-amber-400 hover:text-white shadow-neon-amber/20'
           }`}
           title={isListening ? 'Mute Microphone' : 'Enable Microphone'}
         >
@@ -40,13 +43,17 @@ export default function PitchMonitor({
             <MicOff className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
           )}
           <span>
-            {isListening ? 'Mic Active' : micPermission === 'denied' ? 'Mic Blocked' : 'Enable Mic'}
+            {isListening
+              ? 'Mic Live'
+              : micPermission === 'denied'
+                ? 'Mic Blocked'
+                : 'Enable Vocal Mic'}
           </span>
         </button>
 
         {!isListening && (
-          <span className="text-[11px] sm:text-xs font-mono text-slate-500 hidden sm:inline">
-            (Click to enable live vocal scoring)
+          <span className="text-[11px] sm:text-xs font-mono text-slate-400 hidden sm:inline">
+            (Tracks singing accuracy for score)
           </span>
         )}
 
@@ -55,14 +62,16 @@ export default function PitchMonitor({
           <div className="flex items-center gap-2 font-mono">
             {currentPitch ? (
               <div className="flex items-center gap-2 animate-fade-in">
-                <span className="px-3 py-1 rounded-xl bg-cyan-950 border border-cyan-400/50 text-cyan-300 font-bold text-xs sm:text-sm shadow-neon-cyan">
+                <span className="px-3.5 py-1 rounded-xl bg-cyan-950 border border-cyan-400/80 text-cyan-300 font-digital font-black text-sm sm:text-base shadow-neon-cyan">
                   {currentPitch.noteName}
                 </span>
-                <span className="text-xs sm:text-sm text-slate-400">{currentPitch.pitchHz} Hz</span>
+                <span className="text-xs sm:text-sm text-slate-300 font-digital">
+                  {currentPitch.pitchHz} Hz
+                </span>
               </div>
             ) : (
-              <span className="text-xs sm:text-sm text-slate-500 flex items-center gap-1.5">
-                <Activity className="w-3.5 h-3.5 text-slate-600 animate-pulse" />
+              <span className="text-xs sm:text-sm text-slate-400 flex items-center gap-1.5 font-mono">
+                <Activity className="w-4 h-4 text-cyan-400 animate-pulse" />
                 <span>Listening for vocals...</span>
               </span>
             )}
@@ -71,27 +80,28 @@ export default function PitchMonitor({
       </div>
 
       {/* LED VU Level Meter */}
-      <div className="flex items-center gap-2">
-        <span className="text-[11px] sm:text-xs font-mono uppercase tracking-wider text-slate-400 font-bold hidden sm:inline">
-          Input Level
-        </span>
-        <div className="flex items-center gap-1 p-1 sm:p-1.5 rounded-xl bg-slate-900 border border-slate-800">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 text-[11px] sm:text-xs font-mono uppercase tracking-wider text-slate-400 font-bold hidden md:flex">
+          <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+          <span>VU Meter</span>
+        </div>
+        <div className="flex items-center gap-1 p-1.5 sm:p-2 rounded-2xl bg-black border border-slate-800 shadow-inner">
           {segments.map((threshold, idx) => {
             const isActive = isListening && rmsVolume >= threshold;
-            const isHigh = idx >= 8;
-            const isMid = idx >= 5 && idx < 8;
+            const isHigh = idx >= 9;
+            const isMid = idx >= 6 && idx < 9;
 
             return (
               <div
                 key={idx}
-                className={`w-1.5 sm:w-2 h-4 sm:h-5 rounded-xs transition-all ${
+                className={`w-1.5 sm:w-2 h-5 sm:h-6 rounded-xs transition-all duration-75 ${
                   isActive
                     ? isHigh
-                      ? 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'
+                      ? 'bg-rose-500 shadow-neon-rose scale-y-110'
                       : isMid
-                        ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24]'
-                        : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
-                    : 'bg-slate-800'
+                        ? 'bg-amber-400 shadow-neon-amber'
+                        : 'bg-emerald-400 shadow-neon-emerald'
+                    : 'bg-slate-900/80'
                 }`}
               />
             );

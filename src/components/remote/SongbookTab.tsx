@@ -84,7 +84,7 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by title, artist, or 5-digit code (e.g. 01001)..."
             aria-label="Search song catalog"
-            className="w-full pl-10 pr-9 py-3 rounded-xl bg-slate-900/90 border border-slate-800 focus:border-cyan-400 focus:outline-none text-sm text-white placeholder:text-slate-500 font-mono transition-all shadow-inner focus:shadow-[0_0_15px_rgba(6,182,212,0.25)]"
+            className="w-full pl-10 pr-9 py-3 rounded-2xl bg-slate-900/90 border border-slate-800 focus:border-cyan-400 focus:outline-none text-sm text-white placeholder:text-slate-500 font-mono transition-all shadow-inner focus:shadow-neon-cyan/20 min-h-[44px]"
           />
           {searchTerm && (
             <button
@@ -104,7 +104,7 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3.5 py-2.5 rounded-xl text-xs font-mono whitespace-nowrap transition-all touch-manipulation flex items-center gap-1.5 ${
+              className={`px-3.5 py-2.5 rounded-xl text-xs font-mono whitespace-nowrap transition-all touch-manipulation flex items-center gap-1.5 min-h-[44px] ${
                 selectedCategory === cat.id
                   ? 'bg-gradient-to-r from-cyan-500 to-emerald-400 text-slate-950 font-bold shadow-neon-cyan scale-[1.02]'
                   : 'bg-slate-900/90 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
@@ -121,7 +121,7 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
         <span className="flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
           <span>
-            Showing <strong className="text-cyan-400 font-bold">{songs.length}</strong> songs
+            Found <strong className="text-cyan-400 font-bold">{songs.length}</strong> tracks
             {selectedCategory !== 'All' && (
               <span>
                 {' '}
@@ -146,13 +146,13 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
         )}
       </div>
 
-      {/* Responsive Song Grid: 1 col on mobile, 2 cols on tablet, 3-4 cols on large screens */}
+      {/* Responsive Song Grid */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
-              className="rounded-2xl bg-slate-900/60 border border-slate-800/80 p-4 flex flex-col justify-between gap-3 animate-pulse min-h-[140px]"
+              className="rounded-3xl bg-slate-900/60 border border-slate-800/80 p-4 flex flex-col justify-between gap-3 animate-pulse min-h-[140px]"
             >
               <div className="flex items-center justify-between">
                 <div className="w-16 h-6 rounded-lg bg-slate-800" />
@@ -167,21 +167,21 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
           ))}
         </div>
       ) : songs.length === 0 ? (
-        <div className="p-12 rounded-2xl bg-slate-900/50 border border-slate-800/80 text-center flex flex-col items-center justify-center gap-3">
-          <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-slate-500">
+        <div className="p-12 rounded-3xl bg-slate-900/50 border border-slate-800/80 text-center flex flex-col items-center justify-center gap-3">
+          <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-slate-500">
             <Music className="w-8 h-8" />
           </div>
           <h4 className="text-base font-bold text-white">No songs found</h4>
           <p className="text-xs text-slate-400 font-mono max-w-sm">
             We couldn't find any songs matching "{searchTerm}". Try another keyword, artist name, or
-            clear the search filter.
+            reset filters.
           </p>
           <button
             onClick={() => {
               setSearchTerm('');
               setSelectedCategory('All');
             }}
-            className="mt-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-mono text-cyan-400 border border-cyan-500/30 transition-colors"
+            className="mt-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-mono text-cyan-400 border border-cyan-500/30 transition-colors"
           >
             Reset Filters
           </button>
@@ -192,24 +192,24 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
             {paginatedSongs.map((song) => (
               <div
                 key={song.id}
-                className="group relative rounded-2xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-cyan-500/50 p-4 transition-all duration-200 hover:shadow-[0_4px_24px_rgba(6,182,212,0.18)] hover:-translate-y-0.5 flex flex-col justify-between gap-3 shadow-lg backdrop-blur-sm"
+                className="group relative rounded-3xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-cyan-500/50 p-4 transition-all duration-200 hover:shadow-neon-cyan/20 hover:-translate-y-0.5 flex flex-col justify-between gap-3 shadow-lg backdrop-blur-sm"
               >
                 {/* Card Top: Code Badge & Metadata */}
                 <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={() => onLoadIntoKeypad && onLoadIntoKeypad(song.code)}
-                    title="Tap to load code into keypad"
-                    className="px-2.5 py-1 rounded-lg bg-slate-950 border border-amber-400/40 hover:border-amber-400 text-amber-400 font-digital font-bold text-xs sm:text-sm tracking-wider hover:scale-105 active:scale-95 transition-all shadow-[0_0_8px_rgba(251,191,36,0.15)] shrink-0"
+                    title="Tap to punch code into keypad"
+                    className="px-2.5 py-1 rounded-xl bg-slate-950 border border-amber-400/50 hover:border-amber-400 text-amber-400 font-digital font-bold text-xs sm:text-sm tracking-wider hover:scale-105 active:scale-95 transition-all shadow-[0_0_8px_rgba(251,191,36,0.15)] shrink-0 touch-manipulation"
                   >
                     {song.code}
                   </button>
                   <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
-                    <span className="px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-300 flex items-center gap-1 border border-slate-700/50">
+                    <span className="px-2 py-0.5 rounded-lg bg-slate-800/90 text-slate-300 flex items-center gap-1 border border-slate-700/50">
                       <Globe className="w-3 h-3 text-cyan-400" />
                       {song.language}
                     </span>
-                    <span className="px-2 py-0.5 rounded-md bg-slate-800/90 text-slate-400 flex items-center gap-1 border border-slate-700/50">
+                    <span className="px-2 py-0.5 rounded-lg bg-slate-800/90 text-slate-400 flex items-center gap-1 border border-slate-700/50">
                       <Clock className="w-3 h-3 text-slate-400" />
                       {formatDuration(song.duration)}
                     </span>
@@ -238,7 +238,7 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
                     <button
                       type="button"
                       onClick={() => onLoadIntoKeypad(song.code)}
-                      className="px-2.5 py-2 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-amber-400/50 text-slate-400 hover:text-amber-400 text-xs font-mono flex items-center justify-center gap-1 transition-all active:scale-95"
+                      className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-amber-400/50 text-slate-400 hover:text-amber-400 text-xs font-mono flex items-center justify-center gap-1 transition-all active:scale-95 touch-manipulation min-h-[40px]"
                       title="Load code into 3x4 Keypad"
                     >
                       <Grid3X3 className="w-3.5 h-3.5" />
@@ -247,7 +247,7 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
                   )}
                   <button
                     onClick={() => onSelectSong(song)}
-                    className="flex-1 py-2 px-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-mono font-bold text-xs flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(6,182,212,0.25)] hover:shadow-[0_0_16px_rgba(6,182,212,0.4)] active:scale-95 transition-all touch-manipulation"
+                    className="flex-1 py-2 px-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-mono font-bold text-xs flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(6,182,212,0.25)] hover:shadow-neon-cyan active:scale-95 transition-all touch-manipulation min-h-[40px]"
                   >
                     <Mic2 className="w-3.5 h-3.5" />
                     <span>Reserve</span>
@@ -257,7 +257,7 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
             ))}
           </div>
 
-          {/* Flowbite Pagination Component with Direct Page Jump */}
+          {/* Pagination Component with Direct Page Jump */}
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
@@ -267,7 +267,7 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
               setCurrentPage(page);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className="pt-3 border-t border-slate-800/80"
+            className="pt-4 border-t border-slate-800/80"
           />
         </div>
       )}

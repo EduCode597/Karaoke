@@ -3,58 +3,158 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --color-videoke-bg: #040711;
+  }
+
   body {
-    background-color: #030712;
-    color: #f8fafc;
+    background-color: #040711;
+    color: #f1f5f9;
     font-family:
-      'Inter',
+      'Outfit',
+      'Plus Jakarta Sans',
       system-ui,
       -apple-system,
-      BlinkMacSystemFont,
-      'Segoe UI',
-      Roboto,
       sans-serif;
     -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Custom Sleek Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #060b17;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #1e293b;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #334155;
   }
 }
 
 /* Retro CRT Scanline Overlay for Videoke TV view */
 .crt-overlay {
+  position: relative;
+}
+
+.crt-overlay::before {
+  content: ' ';
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
   background:
-    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
-    linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.28) 50%),
+    linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
   background-size:
     100% 3px,
     6px 100%;
+  pointer-events: none;
+  z-index: 15;
+}
+
+/* Subtle Stage Grid Ambient Background */
+.bg-grid-cyber {
+  background-image:
+    radial-gradient(circle at 50% 0%, rgba(6, 182, 212, 0.15), transparent 45%),
+    radial-gradient(circle at 85% 30%, rgba(217, 70, 239, 0.12), transparent 40%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    48px 48px,
+    48px 48px;
+}
+
+/* Double-Bezel Hardware Chassis Utilities */
+.double-bezel {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 20px 40px -15px rgba(0, 0, 0, 0.8),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15);
+}
+
+.double-bezel-inner {
+  background: linear-gradient(180deg, #090e1c, #060a14);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.6),
+    inset 0 0 20px rgba(0, 0, 0, 0.5);
 }
 
 /* Neon Text Glow Utilities */
 .text-glow-cyan {
   text-shadow:
-    0 0 10px rgba(6, 182, 212, 0.8),
-    0 0 20px rgba(6, 182, 212, 0.4);
+    0 0 12px rgba(6, 182, 212, 0.85),
+    0 0 28px rgba(6, 182, 212, 0.45);
 }
 
 .text-glow-yellow {
   text-shadow:
-    0 0 10px rgba(253, 224, 71, 0.8),
-    0 0 20px rgba(253, 224, 71, 0.4);
+    0 0 12px rgba(253, 224, 71, 0.85),
+    0 0 28px rgba(253, 224, 71, 0.45);
 }
 
 .text-glow-amber {
   text-shadow:
-    0 0 10px rgba(251, 191, 36, 0.8),
-    0 0 20px rgba(251, 191, 36, 0.4);
+    0 0 12px rgba(251, 191, 36, 0.85),
+    0 0 28px rgba(251, 191, 36, 0.45);
 }
 
 .text-glow-magenta {
   text-shadow:
-    0 0 10px rgba(217, 70, 239, 0.8),
-    0 0 20px rgba(217, 70, 239, 0.4);
+    0 0 12px rgba(217, 70, 239, 0.85),
+    0 0 28px rgba(217, 70, 239, 0.45);
+}
+
+.text-glow-emerald {
+  text-shadow:
+    0 0 12px rgba(16, 185, 129, 0.85),
+    0 0 28px rgba(16, 185, 129, 0.45);
 }
 
 /* 7-Segment Digital Font class */
 .font-digital {
   font-family: 'Share Tech Mono', 'Courier New', monospace;
   letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Shimmer animation */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2.5s infinite;
+}
+
+/* Equalizer Bars */
+.equalizer-bar {
+  display: inline-block;
+  width: 3px;
+  background-color: currentColor;
+  border-radius: 9999px;
+  animation-duration: 1.2s;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  animation-timing-function: ease-in-out;
 }
