@@ -13,21 +13,26 @@ import {
 import { searchSongs } from './lib/songs';
 import { isSupabaseConfigured } from './lib/supabase';
 import { sanitizeRoomCode } from './utils/room';
+import Pagination from './components/common/Pagination';
 import type { Song } from './types/song';
 import HostView from './views/HostView';
 import RemoteView from './views/RemoteView';
+
+const SONGS_PER_PAGE = 16;
 
 function HomeDashboard() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [joinRoomCode, setJoinRoomCode] = useState('');
   const [language, setLanguage] = useState<'All' | 'Tagalog' | 'English'>('All');
+  const [currentPage, setCurrentPage] = useState(1);
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setCurrentPage(1);
     searchSongs(searchTerm, language).then((results) => {
       if (active) {
         setSongs(results);
@@ -247,26 +252,44 @@ function HomeDashboard() {
               No songs found matching "{searchTerm}".
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {songs.map((song) => (
-                <div
-                  key={song.id}
-                  className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 hover:border-slate-700 transition-all flex items-center justify-between gap-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="px-2.5 py-1 rounded bg-amber-400/10 border border-amber-400/30 text-amber-400 font-digital font-bold text-sm tracking-wider">
-                      {song.code}
+            <div className="flex flex-col gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {songs
+                  .slice((currentPage - 1) * SONGS_PER_PAGE, currentPage * SONGS_PER_PAGE)
+                  .map((song) => (
+                    <div
+                      key={song.id}
+                      className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 hover:border-slate-700 transition-all flex items-center justify-between gap-4"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="px-2.5 py-1 rounded bg-amber-400/10 border border-amber-400/30 text-amber-400 font-digital font-bold text-sm tracking-wider">
+                          {song.code}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-sm text-white">{song.title}</h3>
+                          <p className="text-xs text-slate-400">{song.artist}</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                        {song.language}
+                      </span>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-sm text-white">{song.title}</h3>
-                      <p className="text-xs text-slate-400">{song.artist}</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">
-                    {song.language}
-                  </span>
-                </div>
-              ))}
+                  ))}
+              </div>
+
+              {/* Flowbite Pagination Component with Input */}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.max(1, Math.ceil(songs.length / SONGS_PER_PAGE))}
+                totalItems={songs.length}
+                itemsPerPage={SONGS_PER_PAGE}
+                onPageChange={(p) => {
+                  setCurrentPage(p);
+                  // Scroll to top of catalog section smoothly on page change
+                  window.scrollTo({ top: 300, behavior: 'smooth' });
+                }}
+                className="pt-4 border-t border-slate-800/80"
+              />
             </div>
           )}
         </div>
