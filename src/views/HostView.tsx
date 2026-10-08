@@ -4,7 +4,6 @@ import { QRCodeSVG } from 'qrcode.react';
 import {
   Smartphone,
   Activity,
-  Volume2,
   Music,
   Radio,
   ListMusic,
@@ -22,7 +21,14 @@ import {
 import { generateRoomCode, getStoredRoomCode, setStoredRoomCode } from '../utils/room';
 import { useRoomChannel } from '../hooks/useRoomChannel';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { getRoomQueue, completeSongInQueue, hydrateQueueItem, setLocalQueue } from '../lib/songs';
+import {
+  getRoomQueue,
+  completeSongInQueue,
+  hydrateQueueItem,
+  setLocalQueue,
+  addSongToQueue,
+  getSongByCode,
+} from '../lib/songs';
 import type { QueueItem } from '../types/song';
 
 import YouTubePlayer, { YouTubePlayerHandle } from '../components/player/YouTubePlayer';
@@ -150,6 +156,32 @@ export default function HostView() {
     setActiveCheer(text);
     setTimeout(() => setActiveCheer(null), 2500);
   }, []);
+
+  // Quick queue song from TV standby buttons
+  const handleQuickAddSong = useCallback(
+    async (code: string) => {
+      try {
+        const song = await getSongByCode(code);
+        if (song && roomCode) {
+          await addSongToQueue(roomCode, song.id, 'Host');
+          const items = await getRoomQueue(roomCode);
+          setQueue(items);
+          setLocalQueue(roomCode, items);
+          sendBroadcastRef.current?.('queue:updated', {
+            room: roomCode,
+            action: 'add',
+            songTitle: song.title,
+            singer: 'Host',
+            queue: items,
+          });
+          triggerCheer(`🎤 Queued "${song.title}"!`);
+        }
+      } catch (err) {
+        console.error('Failed to quick add song:', err);
+      }
+    },
+    [roomCode, triggerCheer]
+  );
 
   const handleKeyChange = useCallback(
     (newKey: number) => {
@@ -417,7 +449,7 @@ export default function HostView() {
           <div ref={stageContainerRef} className="relative w-full">
             {currentTrack && currentTrack.song?.youtube_id ? (
               /* Active Playback Stage */
-              <div className="relative aspect-video w-full rounded-2xl overflow-hidden shadow-2xl bg-black border border-slate-800">
+              <div className="relative aspect-video w-full rounded-3xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.9)] bg-black border-2 border-cyan-500/50 shadow-neon-cyan/20">
                 <YouTubePlayer
                   ref={playerRef}
                   videoId={currentTrack.song.youtube_id}
@@ -438,29 +470,52 @@ export default function HostView() {
               </div>
             ) : (
               /* Empty Standby Stage */
-              <div className="aspect-video w-full rounded-2xl bg-black border border-slate-800 relative overflow-hidden flex flex-col items-center justify-center p-6 sm:p-10 lg:p-14 text-center shadow-2xl">
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent" />
+              <div className="aspect-video w-full rounded-3xl bg-slate-950/95 border-2 border-slate-800/90 relative overflow-hidden flex flex-col items-center justify-center p-6 sm:p-10 lg:p-12 text-center shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+                {/* Stage Ambient Glow Orbs */}
+                <div className="absolute top-0 inset-x-0 h-44 bg-gradient-to-b from-cyan-500/15 via-fuchsia-500/10 to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyan-950/30 via-transparent to-transparent pointer-events-none" />
 
-                <div className="flex flex-col items-center gap-4 sm:gap-5 max-w-xl">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-3xl bg-slate-900/90 border border-slate-800 flex items-center justify-center shadow-neon-cyan transition-transform hover:scale-105">
-                    <Music className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 text-cyan-400 animate-pulse" />
+                <div className="flex flex-col items-center gap-4 sm:gap-5 max-w-xl relative z-10">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-3xl bg-gradient-to-tr from-cyan-500/20 to-fuchsia-500/20 border-2 border-cyan-400/50 flex items-center justify-center shadow-neon-cyan transition-transform hover:scale-105">
+                    <Music className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 text-cyan-300 animate-pulse" />
                   </div>
-                  <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black tracking-wide text-white text-glow-cyan">
+                  <h2 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-wide text-white text-glow-cyan leading-none">
                     READY FOR SINGER
                   </h2>
-                  <p className="text-xs sm:text-sm md:text-base text-slate-400 font-mono leading-relaxed">
-                    Scan the QR code on the right with your phone to pick a song and step up to the
-                    mic!
+                  <p className="text-xs sm:text-sm md:text-base text-slate-300 font-mono leading-relaxed max-w-lg">
+                    Scan the QR code on the right with your phone camera to pick any 5-digit song
+                    and step up to the mic!
                   </p>
+
+                  {/* Fast Quick-Start Demo Buttons right on TV Stage */}
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                    <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider w-full mb-0.5">
+                      Or Launch a Demo Anthem Instantly:
+                    </span>
+                    {[
+                      { code: '01004', title: 'Torete - Moonstar88' },
+                      { code: '01001', title: 'Ang Huling El Bimbo - Eheads' },
+                      { code: '01002', title: 'Anak - Freddie Aguilar' },
+                    ].map((demo) => (
+                      <button
+                        key={demo.code}
+                        onClick={() => handleQuickAddSong(demo.code)}
+                        className="px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 hover:border-cyan-400 text-xs font-mono text-slate-200 hover:text-cyan-300 transition-all active:scale-95 shadow-sm flex items-center gap-1.5 touch-manipulation min-h-[40px]"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>{demo.title}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="absolute bottom-3 sm:bottom-4 left-3 sm:left-4 right-3 sm:right-4 py-2.5 sm:py-3 px-4 sm:px-6 rounded-xl sm:rounded-2xl bg-black/85 border border-slate-800/80 backdrop-blur-md flex items-center justify-between text-xs sm:text-sm">
+                <div className="absolute bottom-3 sm:bottom-4 left-3 sm:left-4 right-3 sm:right-4 py-2.5 sm:py-3 px-4 sm:px-6 rounded-2xl bg-black/85 border border-slate-800/80 backdrop-blur-md flex items-center justify-between text-xs sm:text-sm z-10">
                   <div className="flex items-center gap-2">
-                    <Volume2 className="w-4 h-4 text-amber-400" />
-                    <span className="font-mono text-slate-300">Microphone: Standby</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-neon-emerald" />
+                    <span className="font-mono text-slate-300">Stage Engine Ready</span>
                   </div>
                   <span className="font-digital text-amber-400 tracking-wider font-bold">
-                    PINOYVIDEOKE ENGINE • STANDBY
+                    PINOYVIDEOKE STAGE • ACTIVE
                   </span>
                 </div>
               </div>
@@ -468,7 +523,7 @@ export default function HostView() {
 
             {/* Floating Visual Cheer Reaction Banner */}
             {activeCheer && (
-              <div className="absolute top-8 left-1/2 -translate-x-1/2 z-40 px-6 py-3 rounded-2xl bg-fuchsia-950/90 border border-fuchsia-500/60 text-fuchsia-200 font-black text-sm uppercase tracking-widest shadow-2xl backdrop-blur-md animate-bounce">
+              <div className="absolute top-8 left-1/2 -translate-x-1/2 z-40 px-6 py-3 rounded-2xl bg-fuchsia-950/95 border border-fuchsia-500/60 text-fuchsia-100 font-black text-sm uppercase tracking-widest shadow-2xl backdrop-blur-md animate-bounce">
                 {activeCheer}
               </div>
             )}
@@ -485,7 +540,7 @@ export default function HostView() {
 
           {/* Interactive Player Stage Control Toolbar */}
           {currentTrack && (
-            <div className="p-3 sm:p-4 rounded-2xl bg-slate-950/90 border border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+            <div className="p-3 sm:p-4 rounded-3xl bg-slate-950/95 border border-slate-800/90 flex flex-wrap items-center justify-between gap-3 shadow-xl backdrop-blur-xl">
               {/* Playback Transport Buttons */}
               <div className="flex items-center gap-2 sm:gap-2.5">
                 <button
@@ -499,10 +554,10 @@ export default function HostView() {
                       sendBroadcastRef.current?.('player:action', { action: 'play', time });
                     }
                   }}
-                  className={`py-2.5 px-4 sm:px-5 rounded-xl font-mono text-xs sm:text-sm font-bold flex items-center gap-2 active:scale-95 transition-all shadow-md touch-manipulation min-h-[44px] ${
+                  className={`py-2.5 px-4 sm:px-5 rounded-2xl font-mono text-xs sm:text-sm font-bold flex items-center gap-2 active:scale-95 transition-all shadow-md touch-manipulation min-h-[44px] ${
                     isPlaying
                       ? 'bg-amber-400 hover:bg-amber-300 text-black shadow-neon-amber'
-                      : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_12px_#10b981]'
+                      : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_15px_#10b981]'
                   }`}
                 >
                   {isPlaying ? (
@@ -520,10 +575,10 @@ export default function HostView() {
 
                 <button
                   onClick={handleSongFinished}
-                  className="py-2.5 px-3.5 sm:px-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500/50 hover:text-cyan-400 text-slate-300 font-mono text-xs sm:text-sm flex items-center gap-1.5 active:scale-95 transition-all touch-manipulation min-h-[44px]"
+                  className="py-2.5 px-3.5 sm:px-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-cyan-500/50 hover:text-cyan-300 text-slate-300 font-mono text-xs sm:text-sm flex items-center gap-1.5 active:scale-95 transition-all touch-manipulation min-h-[44px]"
                   title="Score and advance to next queued track"
                 >
-                  <SkipForward className="w-4 h-4" />
+                  <SkipForward className="w-4 h-4 text-cyan-400" />
                   <span>Finish / Score</span>
                 </button>
 
@@ -532,21 +587,21 @@ export default function HostView() {
                     playerRef.current?.replay();
                     sendBroadcastRef.current?.('player:action', { action: 'replay' });
                   }}
-                  className="py-2.5 px-3.5 sm:px-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-fuchsia-500/50 hover:text-fuchsia-400 text-slate-300 font-mono text-xs sm:text-sm flex items-center gap-1.5 active:scale-95 transition-all touch-manipulation min-h-[44px]"
+                  className="py-2.5 px-3.5 sm:px-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-fuchsia-500/50 hover:text-fuchsia-300 text-slate-300 font-mono text-xs sm:text-sm flex items-center gap-1.5 active:scale-95 transition-all touch-manipulation min-h-[44px]"
                   title="Replay track from beginning"
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  <RotateCcw className="w-4 h-4 text-fuchsia-400" />
                   <span>Replay</span>
                 </button>
               </div>
 
               {/* Key Transpose Pitch Offset Control Pill */}
-              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 shadow-inner min-h-[44px]">
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-slate-900 border border-slate-800 shadow-inner min-h-[44px]">
                 <span className="text-xs font-mono text-slate-400 font-bold uppercase">Key:</span>
                 <button
                   onClick={() => handleKeyChange(keyOffset - 1)}
                   disabled={keyOffset <= -6}
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-950 hover:bg-slate-800 text-fuchsia-400 font-digital font-bold text-sm sm:text-base flex items-center justify-center active:scale-95 transition-all disabled:opacity-40 touch-manipulation"
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-950 hover:bg-slate-800 text-fuchsia-400 font-digital font-bold text-sm sm:text-base flex items-center justify-center active:scale-95 transition-all disabled:opacity-40 touch-manipulation"
                   title="Lower key (-1 semitone)"
                 >
                   ♭
@@ -565,7 +620,7 @@ export default function HostView() {
                 <button
                   onClick={() => handleKeyChange(keyOffset + 1)}
                   disabled={keyOffset >= 6}
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-950 hover:bg-slate-800 text-cyan-400 font-digital font-bold text-sm sm:text-base flex items-center justify-center active:scale-95 transition-all disabled:opacity-40 touch-manipulation"
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-950 hover:bg-slate-800 text-cyan-400 font-digital font-bold text-sm sm:text-base flex items-center justify-center active:scale-95 transition-all disabled:opacity-40 touch-manipulation"
                   title="Raise key (+1 semitone)"
                 >
                   ♯
@@ -574,12 +629,11 @@ export default function HostView() {
 
               {/* Mode Toggle & Fullscreen Controls */}
               <div className="flex items-center gap-2">
-                {/* Dual Background Mode Toggle (Video vs Retro KTV) */}
                 <button
                   onClick={() => setPlayerMode((prev) => (prev === 'video' ? 'retro' : 'video'))}
-                  className={`py-2 px-3 sm:px-3.5 rounded-xl border text-xs sm:text-sm font-mono flex items-center gap-1.5 active:scale-95 transition-all touch-manipulation min-h-[44px] ${
+                  className={`py-2 px-3 sm:px-3.5 rounded-2xl border text-xs sm:text-sm font-mono flex items-center gap-1.5 active:scale-95 transition-all touch-manipulation min-h-[44px] ${
                     playerMode === 'retro'
-                      ? 'bg-fuchsia-950 border-fuchsia-500/60 text-fuchsia-300 shadow-neon-magenta'
+                      ? 'bg-fuchsia-950 border-fuchsia-500/60 text-fuchsia-200 shadow-neon-magenta'
                       : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
                   }`}
                   title="Toggle Retro Videoke Scenery Background"
@@ -588,10 +642,9 @@ export default function HostView() {
                   <span>{playerMode === 'retro' ? 'Retro KTV Mode' : 'Native Video'}</span>
                 </button>
 
-                {/* Fullscreen Button */}
                 <button
                   onClick={toggleFullscreen}
-                  className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white active:scale-95 transition-all touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  className="p-2.5 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white active:scale-95 transition-all touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center"
                   title="Toggle Fullscreen Stage"
                 >
                   {isFullscreen ? (
@@ -605,9 +658,9 @@ export default function HostView() {
           )}
 
           {/* Room Pairing Ticker Marquee */}
-          <div className="py-3 px-4 sm:px-5 rounded-2xl bg-slate-950 border border-slate-800/80 overflow-hidden flex items-center gap-3 shadow-md">
-            <span className="px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-400 text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap font-bold">
-              <Radio className="w-3.5 h-3.5 animate-pulse" />
+          <div className="py-3 px-4 sm:px-5 rounded-3xl bg-slate-950 border border-slate-800/80 overflow-hidden flex items-center gap-3 shadow-md">
+            <span className="px-3 py-1 rounded-xl bg-cyan-500/20 text-cyan-300 text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap font-bold">
+              <Radio className="w-3.5 h-3.5 animate-pulse text-cyan-400" />
               Live Room
             </span>
             <div className="overflow-hidden relative w-full">
@@ -624,13 +677,15 @@ export default function HostView() {
           </div>
         </div>
 
-        {/* Right 4-5 Cols: QR Code & Live Party Queue (Wraps into 2-cols on iPad portrait) */}
+        {/* Right 4-5 Cols: QR Code & Live Party Queue */}
         <div className="lg:col-span-5 xl:col-span-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-5">
           {/* Prominent QR Code Card */}
-          <div className="md:col-span-1 lg:col-span-1 p-5 sm:p-6 rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-xl flex items-center justify-between gap-4">
-            <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+          <div className="md:col-span-1 lg:col-span-1 p-5 sm:p-6 rounded-3xl bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950 border border-slate-800/90 shadow-2xl flex items-center justify-between gap-4 relative overflow-hidden">
+            <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-cyan-500/10 to-transparent pointer-events-none" />
+
+            <div className="flex flex-col gap-1.5 flex-1 min-w-0 relative z-10">
               <div className="flex items-center gap-2 text-cyan-400">
-                <Smartphone className="w-4 h-4 sm:w-5 sm:h-5" />
+                <Smartphone className="w-5 h-5 animate-pulse" />
                 <h3 className="font-bold text-xs sm:text-sm tracking-wider uppercase">
                   Scan to Control
                 </h3>
@@ -638,17 +693,20 @@ export default function HostView() {
               <p className="text-xs sm:text-sm text-slate-400 font-mono leading-snug">
                 Scan with your phone to open the 5-digit keypad
               </p>
-              <span className="text-xs sm:text-sm text-amber-400 font-digital font-bold mt-1 text-glow-amber">
-                CODE: {roomCode}
-              </span>
+              <div className="mt-1">
+                <span className="text-[11px] font-mono text-slate-400 block">ROOM CODE:</span>
+                <span className="text-lg sm:text-xl text-amber-300 font-digital font-bold text-glow-amber">
+                  {roomCode}
+                </span>
+              </div>
             </div>
 
             {/* QR Code Container */}
-            <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-950 border border-cyan-500/50 shadow-neon-cyan shrink-0">
+            <div className="p-3 sm:p-3.5 rounded-2xl bg-black border-2 border-cyan-400/60 shadow-neon-cyan shrink-0 relative z-10">
               <QRCodeSVG
                 value={remoteJoinUrl}
                 size={132}
-                bgColor="#030712"
+                bgColor="#000000"
                 fgColor="#06b6d4"
                 level="M"
                 includeMargin={false}
@@ -657,48 +715,48 @@ export default function HostView() {
           </div>
 
           {/* Share Screen Link Card for Distant Friends */}
-          <div className="md:col-span-1 lg:col-span-1 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-fuchsia-950/60 to-slate-950 border border-fuchsia-500/40 shadow-xl flex items-center justify-between gap-4">
+          <div className="md:col-span-1 lg:col-span-1 p-5 rounded-3xl bg-gradient-to-r from-fuchsia-950/70 via-slate-950 to-slate-950 border border-fuchsia-500/50 shadow-2xl flex items-center justify-between gap-4">
             <div className="flex flex-col gap-1 min-w-0">
               <div className="flex items-center gap-2 text-fuchsia-400">
-                <Share2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                <Share2 className="w-5 h-5 shrink-0" />
                 <h4 className="font-bold text-xs sm:text-sm tracking-wider uppercase">
                   Singing with Distant Friends?
                 </h4>
               </div>
-              <p className="text-[11px] sm:text-xs text-slate-400 font-mono leading-tight">
-                Send your friend this screen link so you watch & sing to the same screen together!
+              <p className="text-[11px] sm:text-xs text-slate-300 font-mono leading-tight">
+                Send your friend this screen link so you watch & sing together!
               </p>
             </div>
             <button
               onClick={handleCopyScreenLink}
-              className="px-3.5 py-2 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-mono font-bold text-xs flex items-center gap-1.5 transition-all shrink-0 active:scale-95 shadow-neon-magenta touch-manipulation min-h-[44px]"
+              className="px-4 py-2.5 rounded-2xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-mono font-bold text-xs flex items-center gap-1.5 transition-all shrink-0 active:scale-95 shadow-neon-magenta touch-manipulation min-h-[44px]"
             >
               {copiedScreen ? 'Link Copied!' : 'Copy Screen Link'}
             </button>
           </div>
 
           {/* Live Party Queue Display */}
-          <div className="md:col-span-1 lg:col-span-1 p-5 sm:p-6 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col gap-3.5 shadow-xl">
+          <div className="md:col-span-1 lg:col-span-1 p-5 sm:p-6 rounded-3xl bg-slate-950/90 border border-slate-800/90 flex flex-col gap-4 shadow-2xl backdrop-blur-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <ListMusic className="w-4 h-4 text-fuchsia-400" />
-                <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-200">
-                  Party Playlist
+                <ListMusic className="w-5 h-5 text-fuchsia-400" />
+                <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-200 font-mono">
+                  Party Playlist Lineup
                 </h4>
               </div>
-              <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-bold">
-                {queue.length} in queue
+              <span className="text-xs font-mono px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-fuchsia-300 font-bold font-digital">
+                {queue.length} IN LINE
               </span>
             </div>
 
             {/* Playlist Items */}
-            <div className="flex flex-col gap-2 max-h-72 sm:max-h-80 lg:max-h-[360px] overflow-y-auto pr-1">
+            <div className="flex flex-col gap-2.5 max-h-72 sm:max-h-80 lg:max-h-[360px] overflow-y-auto pr-1">
               {queue.length === 0 ? (
-                <div className="py-8 text-center text-slate-500 font-mono text-xs sm:text-sm">
-                  The party queue is empty!
-                  <br />
+                <div className="py-10 text-center text-slate-500 font-mono text-xs sm:text-sm flex flex-col items-center gap-2">
+                  <Music className="w-7 h-7 text-slate-600" />
+                  <span>The party queue is empty!</span>
                   <span className="text-xs text-slate-600">
-                    Use your phone remote to reserve a song.
+                    Use your phone remote or click a demo anthem on the screen.
                   </span>
                 </div>
               ) : (
@@ -708,27 +766,27 @@ export default function HostView() {
                   return (
                     <div
                       key={item.id}
-                      className={`p-3 rounded-xl border flex items-center justify-between gap-2.5 text-xs sm:text-sm transition-all ${
+                      className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 text-xs sm:text-sm transition-all ${
                         isCurrent
-                          ? 'bg-gradient-to-r from-cyan-950/60 to-slate-900 border-cyan-500/50 shadow-neon-cyan/20'
-                          : 'bg-slate-900/80 border-slate-800/80'
+                          ? 'bg-gradient-to-r from-cyan-950/70 via-slate-950 to-slate-950 border-cyan-500/60 shadow-neon-cyan/20'
+                          : 'bg-slate-900/90 border-slate-800/80 hover:border-slate-700'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5 overflow-hidden">
+                      <div className="flex items-center gap-3 overflow-hidden min-w-0">
                         <span
-                          className={`w-5 h-5 sm:w-6 sm:h-6 rounded-lg font-mono font-bold flex items-center justify-center text-xs shrink-0 ${
+                          className={`w-7 h-7 rounded-xl font-mono font-bold flex items-center justify-center text-xs shrink-0 ${
                             isCurrent
                               ? 'bg-cyan-500 text-black shadow-neon-cyan'
                               : 'bg-slate-800 text-slate-400'
                           }`}
                         >
-                          {isCurrent ? <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : idx + 1}
+                          {isCurrent ? <Sparkles className="w-3.5 h-3.5" /> : idx + 1}
                         </span>
-                        <div className="overflow-hidden">
+                        <div className="overflow-hidden min-w-0">
                           <h5 className="font-bold text-white text-xs sm:text-sm truncate">
                             {item.song?.title || 'Unknown Title'}
                           </h5>
-                          <p className="text-[11px] sm:text-xs text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                          <p className="text-[11px] sm:text-xs text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
                             <User className="w-3 h-3 text-cyan-400" />
                             <span>{item.singer_name || 'Guest'}</span>
                           </p>
@@ -746,16 +804,16 @@ export default function HostView() {
           </div>
 
           {/* Live Realtime Activity Monitor */}
-          <div className="md:col-span-2 lg:col-span-1 p-4 sm:p-5 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col gap-3 shadow-lg">
+          <div className="md:col-span-2 lg:col-span-1 p-4 sm:p-5 rounded-3xl bg-slate-950/85 border border-slate-800 flex flex-col gap-3 shadow-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-emerald-400" />
-                <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-200">
-                  Realtime Activity
+                <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
+                <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-200 font-mono">
+                  Live Event Stream
                 </h4>
               </div>
-              <span className="text-[11px] font-mono text-slate-400">
-                {isSupabaseConfigured ? 'Supabase Broadcast' : 'Demo Mode'}
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-900 text-emerald-400 border border-emerald-500/30">
+                {isSupabaseConfigured ? 'Supabase Live' : 'Local Channel'}
               </span>
             </div>
 
@@ -763,7 +821,7 @@ export default function HostView() {
             <div className="flex flex-col gap-2 max-h-36 sm:max-h-44 overflow-y-auto pr-1">
               {recentEvents.length === 0 ? (
                 <div className="py-4 text-center text-slate-500 font-mono text-xs">
-                  Awaiting remote control events...
+                  Awaiting remote events (cheers, song reserves)...
                 </div>
               ) : (
                 recentEvents.slice(0, 5).map((evt, idx) => (
