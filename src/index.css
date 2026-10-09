@@ -158,3 +158,39 @@
   animation-direction: alternate;
   animation-timing-function: ease-in-out;
 }
+
+/* Animated Karaoke Lyric Wipe Simulation */
+@keyframes lyricSweep {
+  0%,
+  15% {
+    background-size: 0% 100%;
+  }
+  70%,
+  100% {
+    background-size: 100% 100%;
+  }
+}
+
+.karaoke-lyric-active {
+  background: linear-gradient(to right, #fde047, #facc15) no-repeat left center;
+  background-size: 100% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: lyricSweep 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Floating animation for showcase */
+@keyframes floatSubtle {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-float-subtle {
+  animation: floatSubtle 6s ease-in-out infinite;
+}
