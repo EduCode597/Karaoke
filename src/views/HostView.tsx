@@ -751,7 +751,7 @@ export default function HostView() {
                   Party Playlist Lineup
                 </h4>
               </div>
-              <span className="text-xs font-mono px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-fuchsia-300 font-bold font-digital">
+              <span className="text-xs font-mono px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-fuchsia-300 font-bold">
                 {queue.length} IN LINE
               </span>
             </div>
