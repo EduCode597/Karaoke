@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -20,5 +21,10 @@ export default defineConfig({
         },
       },
     },
+  },
+  test: {
+    environment: 'jsdom',
+    // Component tests only; *.test.ts files are standalone tsx scripts run via `npm test`
+    include: ['src/**/*.test.tsx'],
   },
 });

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Award, Music, Sparkles, X, ArrowRight, User, MicOff, Flame, Trophy } from 'lucide-react';
 import type { VideokeScoreResult } from '../../utils/scoring';
 import { playScoreTick, playScoreFanfare } from '../../utils/soundEffects';
@@ -18,12 +19,16 @@ export default function ScoreModal({
   singerName = 'Guest Singer',
   songTitle = 'Song',
   onClose,
-  autoDismissSeconds = 8,
+  autoDismissSeconds = 3,
 }: ScoreModalProps) {
   const [displayedScore, setDisplayedScore] = useState(0);
   const [isRolling, setIsRolling] = useState(false);
   const [countdown, setCountdown] = useState(autoDismissSeconds);
   const fanfarePlayedRef = useRef(false);
+
+  // Latest onClose without restarting the roll-up/countdown effect when the parent re-renders
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   // Keyboard accessibility: Dismiss modal on Escape key
   useEffect(() => {
@@ -47,9 +52,10 @@ export default function ScoreModal({
     }
 
     setIsRolling(true);
+    setCountdown(autoDismissSeconds);
     fanfarePlayedRef.current = false;
     const targetScore = result.score;
-    const duration = 2400; // 2.4 seconds rolling
+    const duration = 1000; // 1.0 second snappy roll
     const startTime = performance.now();
 
     const rollInterval = () => {
@@ -82,46 +88,58 @@ export default function ScoreModal({
     const animId = requestAnimationFrame(rollInterval);
 
     // Auto-dismiss countdown timer
+    let remaining = autoDismissSeconds;
     const timerInterval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerInterval);
-          onClose();
-          return 0;
-        }
-        return prev - 1;
-      });
+      remaining -= 1;
+      setCountdown(remaining);
+      if (remaining <= 0) {
+        clearInterval(timerInterval);
+        onCloseRef.current();
+      }
     }, 1000);
 
     return () => {
       cancelAnimationFrame(animId);
       clearInterval(timerInterval);
     };
-  }, [isOpen, result, autoDismissSeconds, onClose]);
+  }, [isOpen, result, autoDismissSeconds]);
 
   if (!isOpen || !result) return null;
 
+  const handleActionClick = () => {
+    if (isRolling && result) {
+      setIsRolling(false);
+      setDisplayedScore(result.score);
+      if (!fanfarePlayedRef.current) {
+        fanfarePlayedRef.current = true;
+        playScoreFanfare(result.tier);
+      }
+    } else {
+      onCloseRef.current();
+    }
+  };
+
   const isHighScorer = result.score >= 85;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="score-modal-title"
-      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 animate-fade-in crt-overlay"
+      className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 min-h-screen w-screen"
     >
       {/* Ambient Pulsing Glow Background */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/20 via-fuchsia-950/20 to-black pointer-events-none" />
 
-      {/* Main Score Card Container (Double-Bezel) */}
-      <div className="relative w-full max-w-2xl rounded-3xl bg-slate-950/95 border-2 border-amber-400/70 shadow-[0_0_80px_rgba(251,191,36,0.35)] p-6 md:p-8 flex flex-col items-center text-center gap-5 z-10 overflow-hidden">
+      {/* Main Pop-up Score Modal Card (Double-Bezel) */}
+      <div className="relative w-full max-w-xl rounded-3xl bg-slate-950/95 border-2 border-amber-400/80 shadow-[0_0_90px_rgba(251,191,36,0.4)] p-6 md:p-8 flex flex-col items-center text-center gap-4 z-10 overflow-hidden animate-modal-pop">
         {/* Subtle scanline grid */}
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
         {/* Dismiss Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors touch-manipulation min-h-[40px] min-w-[40px] flex items-center justify-center z-20"
+          className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors touch-manipulation min-h-[40px] min-w-[40px] flex items-center justify-center z-20 cursor-pointer"
           title="Dismiss Score"
           aria-label="Dismiss score modal"
         >
@@ -243,14 +261,15 @@ export default function ScoreModal({
             ...
           </span>
           <button
-            onClick={onClose}
-            className="py-2.5 px-5 rounded-2xl bg-gradient-to-r from-cyan-500 via-emerald-400 to-cyan-400 hover:opacity-95 active:scale-95 text-slate-950 font-black uppercase tracking-wider flex items-center gap-2 shadow-neon-cyan transition-all touch-manipulation min-h-[44px]"
+            onClick={handleActionClick}
+            className="py-2.5 px-5 rounded-2xl bg-gradient-to-r from-cyan-500 via-emerald-400 to-cyan-400 hover:opacity-95 active:scale-95 text-slate-950 font-black uppercase tracking-wider flex items-center gap-2 shadow-neon-cyan transition-all touch-manipulation min-h-[44px] cursor-pointer"
           >
             <span>{isRolling ? 'Skip Animation' : 'Next Song'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

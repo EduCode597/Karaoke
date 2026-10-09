@@ -224,6 +224,13 @@ export default function HostView() {
     await handleAdvanceQueue();
   };
 
+  // Pause the track behind the score reveal (Finish / Score can be pressed mid-song)
+  useEffect(() => {
+    if (isScoreModalOpen) {
+      playerRef.current?.pause();
+    }
+  }, [isScoreModalOpen]);
+
   // Broadcast Handler for Mobile Remote & Synced Host Screens
   const handleBroadcast = useCallback(
     (event: string, payload: any) => {
@@ -846,7 +853,7 @@ export default function HostView() {
         singerName={scoreData?.singer}
         songTitle={scoreData?.songTitle}
         onClose={handleScoreDismissed}
-        autoDismissSeconds={9}
+        autoDismissSeconds={3}
       />
 
       {/* Footer */}
