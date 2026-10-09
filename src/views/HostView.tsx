@@ -224,6 +224,13 @@ export default function HostView() {
     await handleAdvanceQueue();
   };
 
+  // Pause the track behind the score reveal (Finish / Score can be pressed mid-song)
+  useEffect(() => {
+    if (isScoreModalOpen) {
+      playerRef.current?.pause();
+    }
+  }, [isScoreModalOpen]);
+
   // Broadcast Handler for Mobile Remote & Synced Host Screens
   const handleBroadcast = useCallback(
     (event: string, payload: any) => {
@@ -744,7 +751,7 @@ export default function HostView() {
                   Party Playlist Lineup
                 </h4>
               </div>
-              <span className="text-xs font-mono px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-fuchsia-300 font-bold font-digital">
+              <span className="text-xs font-mono px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-fuchsia-300 font-bold">
                 {queue.length} IN LINE
               </span>
             </div>
@@ -846,7 +853,7 @@ export default function HostView() {
         singerName={scoreData?.singer}
         songTitle={scoreData?.songTitle}
         onClose={handleScoreDismissed}
-        autoDismissSeconds={9}
+        autoDismissSeconds={3}
       />
 
       {/* Footer */}
