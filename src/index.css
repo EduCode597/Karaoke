@@ -175,6 +175,7 @@
   background: linear-gradient(to right, #fde047, #facc15) no-repeat left center;
   background-size: 100% 100%;
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: lyricSweep 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
