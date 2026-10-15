@@ -88,11 +88,12 @@ The application is deployed and ready for your next party:
 - **7-Segment Rolling LED Score Counter:** Authentic suspenseful rolling score reveal with sound effects, fanfare, and celebratory confetti.
 - **Mid-Song Early Scoring:** Host can click _"Finish / Score"_ at any time during a song to award points and proceed to the next singer.
 
-### ⚡ 5. 0ms Hybrid Realtime Sync & Offline Resiliency
+### ⚡ 5. 0ms Hybrid Realtime Sync, Redis & Offline Resiliency
 
-- **Dual Broadcast Synchronization:**
-  - **Browser `BroadcastChannel`:** Provides instantaneous **0ms latency** synchronization for multi-window setups or local network connections without needing external servers.
-  - **Supabase Realtime Channels:** Provides global cross-device synchronization over the internet with automatic presence tracking (`useRoomChannel.ts`).
+- **Multi-Transport Synchronization:**
+  - **Browser `BroadcastChannel`:** Instantaneous **0ms latency** cross-tab synchronization on the same machine.
+  - **Upstash Redis Realtime:** High-performance serverless Redis event streaming, presence heartbeats, playback state caching, and in-memory queue synchronization.
+  - **Supabase Realtime Channels:** Cloud room fallback and database persistence (`useRoomChannel.ts`).
 - **In-Memory Bundled Catalog:** All 523 verified songs are bundled locally in `src/data/songs.json` for immediate offline search and keypad resolution.
 - **Resilient Queue Hydration (`queue-sync.ts`):** Automatically recovers and repairs missing or incomplete song metadata, ensuring 100% playback continuity even under spotty network conditions.
 
@@ -109,7 +110,8 @@ The application is deployed and ready for your next party:
 | **Acoustic Engine**    | **Pitchfinder 2.3.2**           | YIN vocal fundamental frequency detection                      |
 | **Audio Synthesis**    | **Web Audio API**               | Zero-latency procedural sound effects (airhorn, gong, fanfare) |
 | **Video Playback**     | **YouTube IFrame API**          | Karaoke track playback with synchronized lyrics                |
-| **Cloud Realtime**     | **Supabase JS 2.45.4**          | Realtime broadcast channels and PostgreSQL database            |
+| **In-Memory Realtime** | **Upstash Redis 1.39.0**        | Serverless real-time event streaming, presence & queue sync    |
+| **Cloud Database**     | **Supabase JS 2.45.4**          | Realtime broadcast channels and PostgreSQL database            |
 | **Local Sync**         | **BroadcastChannel API**        | 0ms latency cross-window and offline tab sync                  |
 | **Icons & QR**         | **Lucide React & QRCode.react** | Clean iconography and instant room pairing codes               |
 | **Testing**            | **Vitest 3.2.7 & JSDOM**        | Unit test suite and queue hydration integration tests          |
@@ -196,16 +198,20 @@ npm install
 Create a `.env` file in the root directory:
 
 ```env
-# Optional: Supabase credentials for internet rooms (leave blank for local demo mode)
+# Optional: Supabase credentials for PostgreSQL catalog & fallback rooms
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
+
+# Optional: Upstash Redis credentials for ultra-fast serverless real-time sync
+VITE_UPSTASH_REDIS_REST_URL=https://your-upstash-redis.upstash.io
+VITE_UPSTASH_REDIS_REST_TOKEN=your-upstash-token
 
 # Room Code prefix (default: KANTA)
 VITE_DEFAULT_ROOM_PREFIX=KANTA
 ```
 
 > [!NOTE]
-> **Zero-Config Offline Mode:** If Supabase credentials are not provided, PinoyVideoke automatically operates in high-speed local offline mode using browser `BroadcastChannel` and `localStorage`. No database setup is required to run a full local party!
+> **Zero-Config Offline Resiliency:** If neither Redis nor Supabase credentials are provided, PinoyVideoke automatically operates in high-speed local offline mode using browser `BroadcastChannel` and `localStorage`. No database setup is required to run a full local party! When Upstash Redis is provided, real-time events, queue changes, and presence are synced globally with low latency.
 
 ### 3. Run the Local Development Server
 

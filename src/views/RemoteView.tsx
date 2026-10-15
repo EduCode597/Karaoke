@@ -90,7 +90,7 @@ export default function RemoteView() {
     [triggerHaptic, showToast, refreshQueueCount]
   );
 
-  const { status, onlineCount, sendBroadcast } = useRoomChannel(
+  const { status, onlineCount, sendBroadcast, transport } = useRoomChannel(
     activeRoom,
     false,
     handleRemoteBroadcast
@@ -341,6 +341,11 @@ export default function RemoteView() {
                 <span className="text-[10px] uppercase font-mono text-slate-400 font-bold">
                   {status === 'connected' ? `Live (${onlineCount} in room)` : 'Connecting...'}
                 </span>
+                {transport === 'redis' && (
+                  <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    ⚡ REDIS
+                  </span>
+                )}
               </div>
               <p className="text-sm font-digital font-black text-amber-400 tracking-wider text-glow-amber">
                 ROOM: {activeRoom}

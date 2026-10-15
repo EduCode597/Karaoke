@@ -1,4 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase';
+import { isRedisConfigured } from './redis';
+import { getRedisQueue, saveRedisQueue } from './redis-room';
 import type { Song, QueueItem } from '../types/song';
 import catalogData from '../data/songs.json';
 
@@ -155,6 +157,21 @@ export async function getRoomQueue(roomCode: string): Promise<QueueItem[]> {
 
   const localQueue = getLocal();
 
+  if (isRedisConfigured) {
+    try {
+      const redisItems = await getRedisQueue(roomCode);
+      if (redisItems && Array.isArray(redisItems) && redisItems.length > 0) {
+        const hydrated = redisItems
+          .filter((item: QueueItem) => item.status === 'queued' || item.status === 'playing')
+          .map(hydrateQueueItem);
+        try {
+          localStorage.setItem(`videoke_queue_${roomCode}`, JSON.stringify(hydrated));
+        } catch {}
+        return hydrated;
+      }
+    } catch {}
+  }
+
   if (!isSupabaseConfigured) {
     return localQueue;
   }
@@ -222,6 +239,16 @@ export async function addSongToQueue(
   // Always save locally immediately
   saveLocal();
 
+  if (isRedisConfigured) {
+    getRedisQueue(roomCode)
+      .then(async (current) => {
+        const base = current && current.length > 0 ? current : [localItem];
+        const updated = base.some((i) => i.id === localItem.id) ? base : [...base, localItem];
+        await saveRedisQueue(roomCode, updated);
+      })
+      .catch(() => {});
+  }
+
   if (!isSupabaseConfigured) {
     return localItem;
   }
@@ -272,9 +299,13 @@ export async function removeSongFromQueue(queueId: string): Promise<boolean> {
   try {
     const keys = Object.keys(localStorage).filter((k) => k.startsWith('videoke_queue_'));
     for (const key of keys) {
+      const roomCode = key.replace('videoke_queue_', '');
       const q = JSON.parse(localStorage.getItem(key) || '[]');
       const updated = q.filter((item: QueueItem) => item.id !== queueId);
       localStorage.setItem(key, JSON.stringify(updated));
+      if (isRedisConfigured && roomCode) {
+        saveRedisQueue(roomCode, updated).catch(() => {});
+      }
     }
     window.dispatchEvent(new Event('videoke_queue_change'));
   } catch {}
@@ -305,6 +336,9 @@ export async function moveSongToTop(roomCode: string, queueId: string): Promise<
       const [item] = q.splice(idx, 1);
       q.splice(targetIndex, 0, item);
       localStorage.setItem(key, JSON.stringify(q));
+      if (isRedisConfigured && roomCode) {
+        saveRedisQueue(roomCode, q).catch(() => {});
+      }
       window.dispatchEvent(new Event('videoke_queue_change'));
     }
   } catch {}
@@ -341,9 +375,13 @@ export async function completeSongInQueue(queueId: string): Promise<boolean> {
   try {
     const keys = Object.keys(localStorage).filter((k) => k.startsWith('videoke_queue_'));
     for (const key of keys) {
+      const roomCode = key.replace('videoke_queue_', '');
       const q: QueueItem[] = JSON.parse(localStorage.getItem(key) || '[]');
       const updated = q.filter((item) => item.id !== queueId);
       localStorage.setItem(key, JSON.stringify(updated));
+      if (isRedisConfigured && roomCode) {
+        saveRedisQueue(roomCode, updated).catch(() => {});
+      }
     }
     window.dispatchEvent(new Event('videoke_queue_change'));
   } catch {}
