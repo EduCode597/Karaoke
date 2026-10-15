@@ -21,6 +21,8 @@ import {
 import { generateRoomCode, getStoredRoomCode, setStoredRoomCode } from '../utils/room';
 import { useRoomChannel } from '../hooks/useRoomChannel';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { isRedisConfigured } from '../lib/redis';
+import { setRedisRoomState } from '../lib/redis-room';
 import {
   getRoomQueue,
   completeSongInQueue,
@@ -353,7 +355,7 @@ export default function HostView() {
     [handleSongFinished, triggerCheer, fetchQueue, roomCode]
   );
 
-  const { status, onlineCount, recentEvents, sendBroadcast } = useRoomChannel(
+  const { status, onlineCount, recentEvents, sendBroadcast, transport } = useRoomChannel(
     roomCode,
     true,
     handleBroadcast
@@ -361,6 +363,27 @@ export default function HostView() {
 
   const sendBroadcastRef = useRef(sendBroadcast);
   sendBroadcastRef.current = sendBroadcast;
+
+  // Sync room playback state to Redis for mobile remotes
+  useEffect(() => {
+    if (!isRedisConfigured || !roomCode) return;
+    setRedisRoomState(roomCode, {
+      nowPlaying: currentTrack?.song
+        ? {
+            songId: currentTrack.song.id,
+            title: currentTrack.song.title,
+            artist: currentTrack.song.artist,
+            singerName: currentTrack.singer_name,
+            youtubeId: currentTrack.song.youtube_id,
+            startedAt: Date.now(),
+            duration: currentTrack.song.duration,
+          }
+        : null,
+      isPlaying,
+      keyOffset,
+      updatedAt: Date.now(),
+    }).catch(() => {});
+  }, [roomCode, currentTrack, isPlaying, keyOffset]);
 
   useEffect(() => {
     fetchQueue();
@@ -438,6 +461,7 @@ export default function HostView() {
         roomCode={roomCode}
         onlineCount={onlineCount}
         status={status}
+        transport={transport}
         queue={queue}
         onRegenerateRoom={handleRegenerateRoom}
         onCopyLink={handleCopyLink}

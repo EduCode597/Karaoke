@@ -18,6 +18,7 @@ interface TickerBannerProps {
   roomCode: string;
   onlineCount: number;
   status: 'connected' | 'connecting' | 'disconnected' | 'offline_demo';
+  transport?: 'redis' | 'supabase' | 'local';
   queue: QueueItem[];
   onRegenerateRoom: () => void;
   onCopyLink: () => void;
@@ -32,6 +33,7 @@ export default function TickerBanner({
   roomCode,
   onlineCount,
   status,
+  transport,
   queue,
   onRegenerateRoom,
   onCopyLink,
@@ -146,6 +148,16 @@ export default function TickerBanner({
             <span className="text-xs sm:text-sm font-mono font-bold text-slate-200">
               {onlineCount} {onlineCount === 1 ? 'Phone' : 'Phones'}
             </span>
+            {transport === 'redis' && (
+              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                <span className="text-emerald-400">⚡</span> REDIS
+              </span>
+            )}
+            {transport === 'supabase' && (
+              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                CLOUD
+              </span>
+            )}
           </div>
 
           {/* Share Screen Link Button */}

@@ -1,8 +1,17 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { isRedisConfigured } from '../lib/redis';
+import {
+  publishRedisEvent,
+  fetchRedisEvents,
+  heartbeatRedisPresence,
+  removeRedisPresence,
+  getRedisOnlineCount,
+} from '../lib/redis-room';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'offline_demo';
+export type TransportType = 'redis' | 'supabase' | 'local';
 
 export interface RoomBroadcastMessage {
   event: string;
@@ -32,6 +41,12 @@ export function useRoomChannel(
       : `remote-${Math.random().toString(36).substring(2, 8)}`
   );
 
+  const transport: TransportType = isRedisConfigured
+    ? 'redis'
+    : isSupabaseConfigured
+      ? 'supabase'
+      : 'local';
+
   useEffect(() => {
     if (!roomCode) {
       setStatus('disconnected');
@@ -52,7 +67,7 @@ export function useRoomChannel(
           const { event, payload, senderId, msgId } = ev.data || {};
           if (!event || senderId === clientIdRef.current) return;
 
-          // Prevent duplicate execution if also received via Supabase
+          // Prevent duplicate execution if also received via Redis / Supabase
           if (msgId && processedMsgIdsRef.current.has(msgId)) return;
           if (msgId) {
             processedMsgIdsRef.current.add(msgId);
@@ -107,85 +122,144 @@ export function useRoomChannel(
     };
     window.addEventListener('storage', handleStorageChange);
 
-    // 3. Fallback timer: If Supabase takes longer than 2.0s or fails, mark connected (Local/P2P mode)
+    // 3. Fallback timer: If cloud takes longer than 2.0s, mark connected in local mode
     const fallbackTimer = setTimeout(() => {
       setStatus('connected');
       if (isHost) setOnlineCount((c) => Math.max(1, c));
       else setOnlineCount(1);
     }, 2000);
 
-    // If Supabase is not configured, resolve to offline mode immediately
-    if (!isSupabaseConfigured) {
+    // 4. Redis Real-Time Setup (Pub/Sub stream and presence heartbeats)
+    let redisPollInterval: any = null;
+    let redisPresenceInterval: any = null;
+
+    if (isRedisConfigured) {
       clearTimeout(fallbackTimer);
-      setStatus('offline_demo');
-      setOnlineCount(1);
-      return () => {
-        window.removeEventListener('videoke_queue_change', handleLocalQueueChange);
-        window.removeEventListener('storage', handleStorageChange);
-        if (bc) bc.close();
-      };
-    }
+      setStatus('connected');
 
-    // 4. Initialize Supabase channel
-    try {
-      const channel = supabase.channel(`room:${normalizedRoom}`, {
-        config: {
-          broadcast: { self: false },
-          presence: { key: clientIdRef.current },
-        },
+      // Heartbeat presence immediately
+      heartbeatRedisPresence(normalizedRoom, {
+        clientId: clientIdRef.current,
+        role: isHost ? 'host' : 'remote',
+      });
+      getRedisOnlineCount(normalizedRoom).then((count) => {
+        setOnlineCount(Math.max(1, count));
       });
 
-      channel.on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const total = Object.values(state).flat().length;
-        setOnlineCount(Math.max(1, total));
-      });
+      // Periodic presence heartbeat (every 5 seconds)
+      redisPresenceInterval = setInterval(async () => {
+        await heartbeatRedisPresence(normalizedRoom, {
+          clientId: clientIdRef.current,
+          role: isHost ? 'host' : 'remote',
+        });
+        const count = await getRedisOnlineCount(normalizedRoom);
+        setOnlineCount(Math.max(1, count));
+      }, 5000);
 
-      channel.on('broadcast', { event: '*' }, (eventPayload) => {
-        const msgId = eventPayload.payload?.msgId;
-        if (msgId && processedMsgIdsRef.current.has(msgId)) return;
-        if (msgId) {
-          processedMsgIdsRef.current.add(msgId);
+      // Low-latency polling of Redis event stream (every 650ms)
+      redisPollInterval = setInterval(async () => {
+        const events = await fetchRedisEvents(normalizedRoom, 10);
+        if (!events || events.length === 0) return;
+
+        // Process from oldest to newest so sequential commands execute accurately
+        const chronological = [...events].reverse();
+        for (const msg of chronological) {
+          if (!msg.id || !msg.event) continue;
+          if (msg.senderId === clientIdRef.current) continue;
+          if (processedMsgIdsRef.current.has(msg.id)) continue;
+
+          processedMsgIdsRef.current.add(msg.id);
           if (processedMsgIdsRef.current.size > 200) {
             processedMsgIdsRef.current.clear();
           }
-        }
 
-        const message: RoomBroadcastMessage = {
-          event: eventPayload.event,
-          payload: eventPayload.payload,
-          timestamp: new Date().toLocaleTimeString(),
-        };
-        setRecentEvents((prev) => [message, ...prev.slice(0, 19)]);
-        if (onBroadcastRef.current) {
-          onBroadcastRef.current(eventPayload.event, eventPayload.payload);
+          const message: RoomBroadcastMessage = {
+            event: msg.event,
+            payload: msg.payload,
+            senderId: msg.senderId,
+            timestamp: msg.timestamp || new Date().toLocaleTimeString(),
+          };
+          setRecentEvents((prev) => [message, ...prev.slice(0, 19)]);
+          if (onBroadcastRef.current) {
+            onBroadcastRef.current(msg.event, msg.payload);
+          }
         }
-      });
-
-      channel.subscribe(async (subscribeStatus) => {
-        clearTimeout(fallbackTimer);
-        if (subscribeStatus === 'SUBSCRIBED') {
-          setStatus('connected');
-          try {
-            await channel.track({
-              role: isHost ? 'host' : 'remote',
-              joinedAt: new Date().toISOString(),
-            });
-          } catch {}
-        } else if (subscribeStatus === 'CHANNEL_ERROR' || subscribeStatus === 'TIMED_OUT') {
-          // If Supabase cloud is unreachable, keep status 'connected' via local channel
-          setStatus('connected');
-        }
-      });
-
-      channelRef.current = channel;
-    } catch {
-      setStatus('connected');
+      }, 650);
     }
 
-    // 5. Cleanup on unmount
+    // 5. Initialize Supabase channel if configured
+    if (isSupabaseConfigured) {
+      try {
+        const channel = supabase.channel(`room:${normalizedRoom}`, {
+          config: {
+            broadcast: { self: false },
+            presence: { key: clientIdRef.current },
+          },
+        });
+
+        channel.on('presence', { event: 'sync' }, () => {
+          if (!isRedisConfigured) {
+            const state = channel.presenceState();
+            const total = Object.values(state).flat().length;
+            setOnlineCount(Math.max(1, total));
+          }
+        });
+
+        channel.on('broadcast', { event: '*' }, (eventPayload) => {
+          const msgId = eventPayload.payload?.msgId;
+          if (msgId && processedMsgIdsRef.current.has(msgId)) return;
+          if (msgId) {
+            processedMsgIdsRef.current.add(msgId);
+            if (processedMsgIdsRef.current.size > 200) {
+              processedMsgIdsRef.current.clear();
+            }
+          }
+
+          const message: RoomBroadcastMessage = {
+            event: eventPayload.event,
+            payload: eventPayload.payload,
+            timestamp: new Date().toLocaleTimeString(),
+          };
+          setRecentEvents((prev) => [message, ...prev.slice(0, 19)]);
+          if (onBroadcastRef.current) {
+            onBroadcastRef.current(eventPayload.event, eventPayload.payload);
+          }
+        });
+
+        channel.subscribe(async (subscribeStatus) => {
+          clearTimeout(fallbackTimer);
+          if (subscribeStatus === 'SUBSCRIBED') {
+            setStatus('connected');
+            try {
+              await channel.track({
+                role: isHost ? 'host' : 'remote',
+                joinedAt: new Date().toISOString(),
+              });
+            } catch {}
+          } else if (subscribeStatus === 'CHANNEL_ERROR' || subscribeStatus === 'TIMED_OUT') {
+            setStatus('connected');
+          }
+        });
+
+        channelRef.current = channel;
+      } catch {
+        setStatus('connected');
+      }
+    } else if (!isRedisConfigured) {
+      // If neither Redis nor Supabase is configured, resolve to offline mode
+      clearTimeout(fallbackTimer);
+      setStatus('offline_demo');
+      setOnlineCount(1);
+    }
+
+    // 6. Cleanup on unmount
     return () => {
       clearTimeout(fallbackTimer);
+      if (redisPollInterval) clearInterval(redisPollInterval);
+      if (redisPresenceInterval) clearInterval(redisPresenceInterval);
+      if (isRedisConfigured) {
+        removeRedisPresence(normalizedRoom, clientIdRef.current).catch(() => {});
+      }
       window.removeEventListener('videoke_queue_change', handleLocalQueueChange);
       window.removeEventListener('storage', handleStorageChange);
       if (bcRef.current) {
@@ -199,46 +273,64 @@ export function useRoomChannel(
     };
   }, [roomCode, isHost]);
 
-  // Dispatch a broadcast event to all other clients in the room
-  const sendBroadcast = useCallback(async (event: string, payload: any) => {
-    const msgId = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    processedMsgIdsRef.current.add(msgId);
+  // Dispatch a broadcast event to all other clients in the room across active transports
+  const sendBroadcast = useCallback(
+    async (event: string, payload: any) => {
+      const msgId = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      processedMsgIdsRef.current.add(msgId);
 
-    const message: RoomBroadcastMessage = {
-      event,
-      payload,
-      senderId: clientIdRef.current,
-      timestamp: new Date().toLocaleTimeString(),
-    };
-    setRecentEvents((prev) => [message, ...prev.slice(0, 19)]);
+      const message: RoomBroadcastMessage = {
+        event,
+        payload,
+        senderId: clientIdRef.current,
+        timestamp: new Date().toLocaleTimeString(),
+      };
+      setRecentEvents((prev) => [message, ...prev.slice(0, 19)]);
 
-    // 1. Post to local BroadcastChannel (instant cross-tab communication)
-    if (bcRef.current) {
-      try {
-        bcRef.current.postMessage({
+      const normalizedRoom = roomCode.toUpperCase().trim();
+
+      // 1. Post to local BroadcastChannel (instant 0ms cross-tab communication)
+      if (bcRef.current) {
+        try {
+          bcRef.current.postMessage({
+            event,
+            payload,
+            senderId: clientIdRef.current,
+            msgId,
+          });
+        } catch (err) {
+          console.warn('Error posting to BroadcastChannel:', err);
+        }
+      }
+
+      // 2. Publish to Redis if configured
+      if (isRedisConfigured && normalizedRoom) {
+        publishRedisEvent(normalizedRoom, {
+          id: msgId,
           event,
           payload,
           senderId: clientIdRef.current,
-          msgId,
+          timestamp: message.timestamp,
+        }).catch((err) => {
+          console.warn('Redis broadcast error:', err);
         });
-      } catch (err) {
-        console.warn('Error posting to BroadcastChannel:', err);
       }
-    }
 
-    // 2. Post to Supabase Realtime channel if subscribed
-    if (channelRef.current) {
-      try {
-        await channelRef.current.send({
-          type: 'broadcast',
-          event,
-          payload: { ...payload, msgId, senderId: clientIdRef.current },
-        });
-      } catch {
-        // Silently fallback to local broadcast
+      // 3. Post to Supabase Realtime channel if subscribed
+      if (channelRef.current) {
+        try {
+          await channelRef.current.send({
+            type: 'broadcast',
+            event,
+            payload: { ...payload, msgId, senderId: clientIdRef.current },
+          });
+        } catch {
+          // Silently fallback to local broadcast
+        }
       }
-    }
-  }, []);
+    },
+    [roomCode]
+  );
 
   return {
     status,
@@ -246,5 +338,6 @@ export function useRoomChannel(
     recentEvents,
     sendBroadcast,
     clientId: clientIdRef.current,
+    transport,
   };
 }
