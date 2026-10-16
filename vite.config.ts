@@ -26,6 +26,6 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     // Component and unit tests
-    include: ['src/**/*.test.tsx', 'src/lib/redis.test.ts'],
+    include: ['src/**/*.test.tsx', 'src/lib/redis.test.ts', 'src/utils/alphabet.test.ts'],
   },
 });

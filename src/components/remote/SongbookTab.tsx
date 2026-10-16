@@ -1,7 +1,9 @@
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect, useMemo, useTransition } from 'react';
 import { Search, Music, Mic2, X, Clock, Globe, Grid3X3, Sparkles } from 'lucide-react';
 import { searchSongs } from '../../lib/songs';
 import Pagination from '../common/Pagination';
+import AlphabetNav from '../common/AlphabetNav';
+import { calculateLetterCounts, getAlphabetKey } from '../../utils/alphabet';
 import type { Song } from '../../types/song';
 
 interface SongbookTabProps {
@@ -20,8 +22,10 @@ const SONGS_PER_PAGE = 16;
 export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: SongbookTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedLetter, setSelectedLetter] = useState<string>('All');
+  const [sortBy, setSortBy] = useState<'title' | 'artist'>('title');
   const [currentPage, setCurrentPage] = useState(1);
-  const [songs, setSongs] = useState<Song[]>([]);
+  const [baseSongs, setBaseSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [, startTransition] = useTransition();
 
@@ -34,11 +38,12 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
       try {
         const results = await searchSongs(
           searchTerm,
-          selectedCategory === 'All' ? undefined : selectedCategory
+          selectedCategory === 'All' ? undefined : selectedCategory,
+          { sortBy }
         );
         if (!isCancelled) {
           startTransition(() => {
-            setSongs(results);
+            setBaseSongs(results);
             setLoading(false);
           });
         }
@@ -54,10 +59,24 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [searchTerm, selectedCategory]);
+  }, [searchTerm, selectedCategory, sortBy]);
 
-  const totalPages = Math.max(1, Math.ceil(songs.length / SONGS_PER_PAGE));
-  const paginatedSongs = songs.slice(
+  // Dynamically compute letter counts across available songs
+  const letterCounts = useMemo(() => {
+    return calculateLetterCounts(baseSongs, sortBy);
+  }, [baseSongs, sortBy]);
+
+  // Songs filtered by selected letter
+  const filteredSongs = useMemo(() => {
+    if (selectedLetter === 'All') {
+      return baseSongs;
+    }
+    const targetField = sortBy === 'artist' ? 'artist' : 'title';
+    return baseSongs.filter((s) => getAlphabetKey(s[targetField]) === selectedLetter);
+  }, [baseSongs, selectedLetter, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredSongs.length / SONGS_PER_PAGE));
+  const paginatedSongs = filteredSongs.slice(
     (currentPage - 1) * SONGS_PER_PAGE,
     currentPage * SONGS_PER_PAGE
   );
@@ -103,7 +122,11 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
           {CATEGORIES.map((cat) => (
             <button
               key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
+              onClick={() => {
+                setSelectedCategory(cat.id);
+                setSelectedLetter('All');
+                setCurrentPage(1);
+              }}
               className={`px-3.5 py-2.5 rounded-xl text-xs font-mono whitespace-nowrap transition-all touch-manipulation flex items-center gap-1.5 min-h-[44px] ${
                 selectedCategory === cat.id
                   ? 'bg-gradient-to-r from-cyan-500 to-emerald-400 text-slate-950 font-bold shadow-neon-cyan scale-[1.02]'
@@ -116,16 +139,39 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
         </div>
       </div>
 
+      {/* Top Nav: Alphabetical Navigation Chips Ribbon */}
+      <AlphabetNav
+        compact
+        selectedLetter={selectedLetter}
+        onSelectLetter={(letter) => {
+          setSelectedLetter(letter);
+          setCurrentPage(1);
+        }}
+        letterCounts={letterCounts}
+        totalCount={baseSongs.length}
+        sortBy={sortBy}
+        onSortByChange={(newSort) => {
+          setSortBy(newSort);
+          setCurrentPage(1);
+        }}
+      />
+
       {/* Results Header Status */}
       <div className="flex items-center justify-between text-xs font-mono text-slate-400 px-1">
         <span className="flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
           <span>
-            Found <strong className="text-cyan-400 font-bold">{songs.length}</strong> tracks
+            Found <strong className="text-cyan-400 font-bold">{filteredSongs.length}</strong> tracks
             {selectedCategory !== 'All' && (
               <span>
                 {' '}
                 in <strong className="text-slate-200">{selectedCategory}</strong>
+              </span>
+            )}
+            {selectedLetter !== 'All' && (
+              <span>
+                {' '}
+                under letter <strong className="text-amber-400">"{selectedLetter}"</strong>
               </span>
             )}
             {searchTerm.trim() && (
@@ -136,12 +182,15 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
             )}
           </span>
         </span>
-        {searchTerm.trim() && (
+        {(searchTerm.trim() || selectedLetter !== 'All') && (
           <button
-            onClick={() => setSearchTerm('')}
+            onClick={() => {
+              setSearchTerm('');
+              setSelectedLetter('All');
+            }}
             className="text-xs text-rose-400 hover:text-rose-300 underline underline-offset-4 transition-colors"
           >
-            Clear filter
+            Reset filters
           </button>
         )}
       </div>
@@ -166,20 +215,21 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
             </div>
           ))}
         </div>
-      ) : songs.length === 0 ? (
+      ) : filteredSongs.length === 0 ? (
         <div className="p-12 rounded-3xl bg-slate-900/50 border border-slate-800/80 text-center flex flex-col items-center justify-center gap-3">
           <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-slate-500">
             <Music className="w-8 h-8" />
           </div>
           <h4 className="text-base font-bold text-white">No songs found</h4>
           <p className="text-xs text-slate-400 font-mono max-w-sm">
-            We couldn't find any songs matching "{searchTerm}". Try another keyword, artist name, or
+            We couldn't find any songs matching your current filter. Try another keyword, letter, or
             reset filters.
           </p>
           <button
             onClick={() => {
               setSearchTerm('');
               setSelectedCategory('All');
+              setSelectedLetter('All');
             }}
             className="mt-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-mono text-cyan-400 border border-cyan-500/30 transition-colors"
           >
@@ -189,79 +239,90 @@ export default function SongbookTab({ onSelectSong, onLoadIntoKeypad }: Songbook
       ) : (
         <div className="flex flex-col gap-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4">
-            {paginatedSongs.map((song) => (
-              <div
-                key={song.id}
-                className="group relative rounded-3xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-cyan-500/50 p-4 transition-all duration-200 hover:shadow-neon-cyan/20 hover:-translate-y-0.5 flex flex-col justify-between gap-3 shadow-lg backdrop-blur-sm"
-              >
-                {/* Card Top: Code Badge & Metadata */}
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onLoadIntoKeypad && onLoadIntoKeypad(song.code)}
-                    title="Tap to punch code into keypad"
-                    className="px-2.5 py-1 rounded-xl bg-slate-950 border border-amber-400/50 hover:border-amber-400 text-amber-400 font-digital font-bold text-xs sm:text-sm tracking-wider hover:scale-105 active:scale-95 transition-all shadow-[0_0_8px_rgba(251,191,36,0.15)] shrink-0 touch-manipulation"
-                  >
-                    {song.code}
-                  </button>
-                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
-                    <span className="px-2 py-0.5 rounded-lg bg-slate-800/90 text-slate-300 flex items-center gap-1 border border-slate-700/50">
-                      <Globe className="w-3 h-3 text-cyan-400" />
-                      {song.language}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-lg bg-slate-800/90 text-slate-400 flex items-center gap-1 border border-slate-700/50">
-                      <Clock className="w-3 h-3 text-slate-400" />
-                      {formatDuration(song.duration)}
-                    </span>
+            {paginatedSongs.map((song) => {
+              const indexLetter = getAlphabetKey(sortBy === 'artist' ? song.artist : song.title);
+              return (
+                <div
+                  key={song.id}
+                  className="group relative rounded-3xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800/90 hover:border-cyan-500/50 p-4 transition-all duration-200 hover:shadow-neon-cyan/20 hover:-translate-y-0.5 flex flex-col justify-between gap-3 shadow-lg backdrop-blur-sm"
+                >
+                  {/* Card Top: Code Badge & Metadata */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onLoadIntoKeypad && onLoadIntoKeypad(song.code)}
+                        title="Tap to punch code into keypad"
+                        className="px-2.5 py-1 rounded-xl bg-slate-950 border border-amber-400/50 hover:border-amber-400 text-amber-400 font-digital font-bold text-xs sm:text-sm tracking-wider hover:scale-105 active:scale-95 transition-all shadow-[0_0_8px_rgba(251,191,36,0.15)] shrink-0 touch-manipulation"
+                      >
+                        {song.code}
+                      </button>
+                      <span
+                        className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-amber-300 font-bold"
+                        title={`Index letter: ${indexLetter}`}
+                      >
+                        {indexLetter}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-800/90 text-slate-300 flex items-center gap-1 border border-slate-700/50">
+                        <Globe className="w-3 h-3 text-cyan-400" />
+                        {song.language}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-800/90 text-slate-400 flex items-center gap-1 border border-slate-700/50">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        {formatDuration(song.duration)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Card Middle: Title & Artist */}
+                  <div className="min-w-0 my-0.5">
+                    <h4
+                      className="font-bold text-sm sm:text-base text-white group-hover:text-cyan-300 transition-colors truncate"
+                      title={song.title}
+                    >
+                      {song.title}
+                    </h4>
+                    <p
+                      className="text-xs sm:text-sm text-slate-400 truncate mt-0.5"
+                      title={song.artist}
+                    >
+                      {song.artist}
+                    </p>
+                  </div>
+
+                  {/* Card Bottom: Actions */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60 mt-auto">
+                    {onLoadIntoKeypad && (
+                      <button
+                        type="button"
+                        onClick={() => onLoadIntoKeypad(song.code)}
+                        className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-amber-400/50 text-slate-400 hover:text-amber-400 text-xs font-mono flex items-center justify-center gap-1 transition-all active:scale-95 touch-manipulation min-h-[40px]"
+                        title="Load code into 3x4 Keypad"
+                      >
+                        <Grid3X3 className="w-3.5 h-3.5" />
+                        <span className="hidden min-[400px]:inline">Keypad</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onSelectSong(song)}
+                      className="flex-1 py-2 px-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-mono font-bold text-xs flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(6,182,212,0.25)] hover:shadow-neon-cyan active:scale-95 transition-all touch-manipulation min-h-[40px]"
+                    >
+                      <Mic2 className="w-3.5 h-3.5" />
+                      <span>Reserve</span>
+                    </button>
                   </div>
                 </div>
-
-                {/* Card Middle: Title & Artist */}
-                <div className="min-w-0 my-0.5">
-                  <h4
-                    className="font-bold text-sm sm:text-base text-white group-hover:text-cyan-300 transition-colors truncate"
-                    title={song.title}
-                  >
-                    {song.title}
-                  </h4>
-                  <p
-                    className="text-xs sm:text-sm text-slate-400 truncate mt-0.5"
-                    title={song.artist}
-                  >
-                    {song.artist}
-                  </p>
-                </div>
-
-                {/* Card Bottom: Actions */}
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60 mt-auto">
-                  {onLoadIntoKeypad && (
-                    <button
-                      type="button"
-                      onClick={() => onLoadIntoKeypad(song.code)}
-                      className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-amber-400/50 text-slate-400 hover:text-amber-400 text-xs font-mono flex items-center justify-center gap-1 transition-all active:scale-95 touch-manipulation min-h-[40px]"
-                      title="Load code into 3x4 Keypad"
-                    >
-                      <Grid3X3 className="w-3.5 h-3.5" />
-                      <span className="hidden min-[400px]:inline">Keypad</span>
-                    </button>
-                  )}
-                  <button
-                    onClick={() => onSelectSong(song)}
-                    className="flex-1 py-2 px-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-mono font-bold text-xs flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(6,182,212,0.25)] hover:shadow-neon-cyan active:scale-95 transition-all touch-manipulation min-h-[40px]"
-                  >
-                    <Mic2 className="w-3.5 h-3.5" />
-                    <span>Reserve</span>
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Pagination Component with Direct Page Jump */}
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={songs.length}
+            totalItems={filteredSongs.length}
             itemsPerPage={SONGS_PER_PAGE}
             onPageChange={(page) => {
               setCurrentPage(page);
