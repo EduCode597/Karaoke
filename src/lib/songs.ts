@@ -5,7 +5,7 @@ import type { Song, QueueItem } from '../types/song';
 import catalogData from '../data/songs.json';
 import { getAlphabetKey, sortSongsAlphabetically } from '../utils/alphabet';
 
-// In-memory catalog containing all 523 CoversPH & staple karaoke songs
+// In-memory catalog containing all 641 CoversPH & staple karaoke songs (including female key tracks)
 export const FALLBACK_SONGS: Song[] = catalogData as Song[];
 
 export interface SearchSongOptions {
