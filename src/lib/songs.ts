@@ -3,11 +3,22 @@ import { isRedisConfigured } from './redis';
 import { getRedisQueue, saveRedisQueue } from './redis-room';
 import type { Song, QueueItem } from '../types/song';
 import catalogData from '../data/songs.json';
+import { getAlphabetKey, sortSongsAlphabetically } from '../utils/alphabet';
 
 // In-memory catalog containing all 523 CoversPH & staple karaoke songs
 export const FALLBACK_SONGS: Song[] = catalogData as Song[];
 
-function searchFallbackSongs(searchTerm = '', language?: string): Song[] {
+export interface SearchSongOptions {
+  letter?: string;
+  sortBy?: 'title' | 'artist' | 'code';
+  sortOrder?: 'asc' | 'desc';
+}
+
+function searchFallbackSongs(
+  searchTerm = '',
+  language?: string,
+  options?: SearchSongOptions
+): Song[] {
   let results = FALLBACK_SONGS;
   if (language && language !== 'All') {
     results = results.filter((s) => s.language.toLowerCase() === language.toLowerCase());
@@ -22,14 +33,36 @@ function searchFallbackSongs(searchTerm = '', language?: string): Song[] {
       return terms.every((t) => searchTarget.includes(t));
     });
   }
+
+  // Filter by alphabetical letter if specified
+  if (options?.letter && options.letter !== 'All') {
+    const targetField = options.sortBy === 'artist' ? 'artist' : 'title';
+    results = results.filter((s) => getAlphabetKey(s[targetField]) === options.letter);
+  }
+
+  // Sort results alphabetically (default: Title A-Z)
+  const sortBy = options?.sortBy || 'title';
+  const sortOrder = options?.sortOrder || 'asc';
+  if (sortBy === 'code') {
+    results = [...results].sort((a, b) =>
+      sortOrder === 'asc' ? a.code.localeCompare(b.code) : b.code.localeCompare(a.code)
+    );
+  } else {
+    results = sortSongsAlphabetically(results, sortBy, sortOrder);
+  }
+
   return results;
 }
 
 /**
  * Search songs with instant local-first search and optional Supabase query with timeout race
  */
-export async function searchSongs(searchTerm = '', language?: string): Promise<Song[]> {
-  const localResults = searchFallbackSongs(searchTerm, language);
+export async function searchSongs(
+  searchTerm = '',
+  language?: string,
+  options?: SearchSongOptions
+): Promise<Song[]> {
+  const localResults = searchFallbackSongs(searchTerm, language, options);
 
   if (!isSupabaseConfigured) {
     return localResults;
@@ -54,10 +87,27 @@ export async function searchSongs(searchTerm = '', language?: string): Promise<S
         query = query.eq('language', language);
       }
 
-      const { data, error } = await query.order('title', { ascending: true }).limit(1000);
+      const sortBy = options?.sortBy || 'title';
+      const isAsc = options?.sortOrder !== 'desc';
+      if (sortBy === 'artist') {
+        query = query.order('artist', { ascending: isAsc }).order('title', { ascending: true });
+      } else if (sortBy === 'code') {
+        query = query.order('code', { ascending: isAsc });
+      } else {
+        query = query.order('title', { ascending: isAsc });
+      }
+
+      const { data, error } = await query.limit(1000);
       if (error || !data || data.length === 0 || data.length < localResults.length) {
         return localResults;
       }
+
+      // If letter filter was requested, filter data
+      if (options?.letter && options.letter !== 'All') {
+        const field = sortBy === 'artist' ? 'artist' : 'title';
+        return (data as Song[]).filter((s) => getAlphabetKey(s[field]) === options.letter);
+      }
+
       return data;
     };
 

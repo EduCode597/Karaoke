@@ -26,6 +26,8 @@ import { isSupabaseConfigured } from './lib/supabase';
 import { sanitizeRoomCode } from './utils/room';
 import { playAirhorn } from './utils/soundEffects';
 import Pagination from './components/common/Pagination';
+import AlphabetNav from './components/common/AlphabetNav';
+import { calculateLetterCounts, getAlphabetKey } from './utils/alphabet';
 import type { Song } from './types/song';
 import HostView from './views/HostView';
 import RemoteView from './views/RemoteView';
@@ -41,9 +43,11 @@ function HomeDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [joinRoomCode, setJoinRoomCode] = useState('');
   const [language, setLanguage] = useState<'All' | 'Tagalog' | 'English'>('All');
+  const [selectedLetter, setSelectedLetter] = useState<string>('All');
+  const [sortBy, setSortBy] = useState<'title' | 'artist'>('title');
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
-  const [songs, setSongs] = useState<Song[]>([]);
+  const [baseSongs, setBaseSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Interactive feedback states
@@ -57,9 +61,9 @@ function HomeDashboard() {
     setLoading(true);
     setCurrentPage(1);
 
-    searchSongs(searchTerm, language).then((results) => {
+    searchSongs(searchTerm, language, { sortBy }).then((results) => {
       if (active) {
-        setSongs(results);
+        setBaseSongs(results);
         setLoading(false);
       }
     });
@@ -67,7 +71,21 @@ function HomeDashboard() {
     return () => {
       active = false;
     };
-  }, [searchTerm, language]);
+  }, [searchTerm, language, sortBy]);
+
+  // Dynamically compute letter counts across all available songs in current language/search
+  const letterCounts = useMemo(() => {
+    return calculateLetterCounts(baseSongs, sortBy);
+  }, [baseSongs, sortBy]);
+
+  // Songs filtered by selected alphabetical letter
+  const filteredSongs = useMemo(() => {
+    if (selectedLetter === 'All') {
+      return baseSongs;
+    }
+    const targetField = sortBy === 'artist' ? 'artist' : 'title';
+    return baseSongs.filter((s) => getAlphabetKey(s[targetField]) === selectedLetter);
+  }, [baseSongs, selectedLetter, sortBy]);
 
   // Keyboard shortcut: Press '/' to focus search bar
   useEffect(() => {
@@ -106,7 +124,8 @@ function HomeDashboard() {
 
   // Surprise Me / Random song picker
   const handleSurpriseMe = () => {
-    const pool = songs.length > 0 ? songs : FALLBACK_SONGS;
+    const pool =
+      filteredSongs.length > 0 ? filteredSongs : baseSongs.length > 0 ? baseSongs : FALLBACK_SONGS;
     if (pool.length > 0) {
       const picked = pool[Math.floor(Math.random() * pool.length)];
       setRandomPick(picked);
@@ -125,10 +144,10 @@ function HomeDashboard() {
   // Paginated slice
   const paginatedSongs = useMemo(() => {
     const start = (currentPage - 1) * SONGS_PER_PAGE;
-    return songs.slice(start, start + SONGS_PER_PAGE);
-  }, [songs, currentPage]);
+    return filteredSongs.slice(start, start + SONGS_PER_PAGE);
+  }, [filteredSongs, currentPage]);
 
-  const totalPages = Math.max(1, Math.ceil(songs.length / SONGS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filteredSongs.length / SONGS_PER_PAGE));
 
   return (
     <div className="min-h-screen bg-videoke-bg text-slate-100 flex flex-col justify-between selection:bg-cyan-500 selection:text-black relative overflow-x-hidden">
@@ -619,7 +638,7 @@ function HomeDashboard() {
                   5-Digit Songbook Catalog
                 </h2>
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-amber-400 font-mono font-bold">
-                  {songs.length} Tracks
+                  {filteredSongs.length} Tracks
                 </span>
               </div>
               <p className="text-xs text-slate-400 font-mono">
@@ -640,7 +659,11 @@ function HomeDashboard() {
               ].map((cat) => (
                 <button
                   key={cat.id}
-                  onClick={() => setLanguage(cat.id as any)}
+                  onClick={() => {
+                    setLanguage(cat.id as any);
+                    setSelectedLetter('All');
+                    setCurrentPage(1);
+                  }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     language === cat.id
                       ? 'bg-amber-400 text-black shadow-neon-amber'
@@ -652,6 +675,52 @@ function HomeDashboard() {
               ))}
             </div>
           </div>
+
+          {/* Top Nav: Alphabetical Navigation Chips Ribbon */}
+          <AlphabetNav
+            selectedLetter={selectedLetter}
+            onSelectLetter={(letter) => {
+              setSelectedLetter(letter);
+              setCurrentPage(1);
+            }}
+            letterCounts={letterCounts}
+            totalCount={baseSongs.length}
+            sortBy={sortBy}
+            onSortByChange={(newSort) => {
+              setSortBy(newSort);
+              setCurrentPage(1);
+            }}
+          />
+
+          {/* Active Alphabet Filter Notification Ribbon */}
+          {selectedLetter !== 'All' && (
+            <div className="p-3 rounded-xl bg-amber-400/10 border border-amber-400/30 text-amber-300 text-xs font-mono flex items-center justify-between gap-4 animate-in fade-in duration-200">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>
+                  Browsing letter{' '}
+                  <strong className="text-amber-200 font-bold font-digital text-sm">
+                    "{selectedLetter}"
+                  </strong>{' '}
+                  — <strong className="text-white font-digital">{filteredSongs.length}</strong>{' '}
+                  tracks categorized by{' '}
+                  <strong className="text-amber-300">
+                    {sortBy === 'artist' ? 'Artist' : 'Title'}
+                  </strong>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedLetter('All');
+                  setCurrentPage(1);
+                }}
+                className="text-amber-400 hover:text-white underline underline-offset-4 text-xs font-mono shrink-0 transition-colors"
+              >
+                Reset to All Tracks
+              </button>
+            </div>
+          )}
 
           {/* Search Bar & Action Utility Ribbon */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -757,15 +826,38 @@ function HomeDashboard() {
               <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
               <span>Loading song catalog...</span>
             </div>
-          ) : songs.length === 0 ? (
-            <div className="py-20 text-center text-slate-500 font-mono text-sm border border-dashed border-slate-800 rounded-2xl">
-              No tracks found matching "{searchTerm}". Try another title, artist, or 5-digit code.
+          ) : filteredSongs.length === 0 ? (
+            <div className="py-16 text-center text-slate-400 font-mono text-sm border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center gap-3 p-6 bg-slate-950/40">
+              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-amber-400">
+                <Music className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-200">
+                  No tracks found
+                  {selectedLetter !== 'All' ? ` starting with "${selectedLetter}"` : ''}
+                  {searchTerm ? ` matching "${searchTerm}"` : ''}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Try another letter, change category, or reset filters.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedLetter('All');
+                  setSearchTerm('');
+                  setLanguage('All');
+                }}
+                className="mt-1 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-400/30 text-xs font-mono transition-all"
+              >
+                Reset All Filters
+              </button>
             </div>
           ) : viewMode === 'grid' ? (
             /* RESPONSIVE 4-COLUMN CARDS GRID (1 col mobile, 2 col tablet, 3 col laptop, 4 col desktop) */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
               {paginatedSongs.map((song) => {
                 const isCopied = copiedCode === song.code;
+                const indexLetter = getAlphabetKey(sortBy === 'artist' ? song.artist : song.title);
                 return (
                   <div
                     key={song.id}
@@ -773,8 +865,16 @@ function HomeDashboard() {
                   >
                     {/* Top Row: 5-Digit Code & Copy Button */}
                     <div className="flex items-center justify-between">
-                      <div className="px-2.5 py-1 rounded bg-amber-400/10 border border-amber-400/30 text-amber-400 font-digital font-bold text-sm tracking-wider">
-                        {song.code}
+                      <div className="flex items-center gap-1.5">
+                        <div className="px-2.5 py-1 rounded bg-amber-400/10 border border-amber-400/30 text-amber-400 font-digital font-bold text-sm tracking-wider">
+                          {song.code}
+                        </div>
+                        <span
+                          className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-amber-300 font-bold"
+                          title={`Index letter: ${indexLetter}`}
+                        >
+                          {indexLetter}
+                        </span>
                       </div>
 
                       <div className="flex items-center gap-1.5">
@@ -829,6 +929,7 @@ function HomeDashboard() {
                 <table className="w-full text-left text-xs font-mono">
                   <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[10px]">
                     <tr>
+                      <th className="px-3 py-3 w-12 text-center">Index</th>
                       <th className="px-4 py-3">Code</th>
                       <th className="px-4 py-3">Song Title</th>
                       <th className="px-4 py-3">Artist</th>
@@ -839,8 +940,16 @@ function HomeDashboard() {
                   <tbody className="divide-y divide-slate-800/60">
                     {paginatedSongs.map((song) => {
                       const isCopied = copiedCode === song.code;
+                      const indexLetter = getAlphabetKey(
+                        sortBy === 'artist' ? song.artist : song.title
+                      );
                       return (
                         <tr key={song.id} className="hover:bg-slate-900/40 transition-colors">
+                          <td className="px-3 py-2.5 text-center">
+                            <span className="inline-block px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-amber-300 font-bold">
+                              {indexLetter}
+                            </span>
+                          </td>
                           <td className="px-4 py-2.5 font-digital font-bold text-amber-400 text-sm">
                             {song.code}
                           </td>
@@ -875,12 +984,12 @@ function HomeDashboard() {
           )}
 
           {/* Flowbite Pagination Component */}
-          {songs.length > 0 && (
+          {filteredSongs.length > 0 && (
             <div className="pt-4 border-t border-slate-800/80">
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={songs.length}
+                totalItems={filteredSongs.length}
                 itemsPerPage={SONGS_PER_PAGE}
                 onPageChange={(p) => {
                   setCurrentPage(p);
